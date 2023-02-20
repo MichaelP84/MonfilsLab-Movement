@@ -20,6 +20,7 @@ velocity_bin = 600 # (frames)
 cluster_threshold = 15 # (frames)
 
 # Approach Behavior
-approach_distance = 0.5 # (inches) 
-approach_time = 0.5 # (seconds)
-null_frame_tolerance = 20 # (frames) 
+approach_distance = 1.5 # (inches) 
+approach_time = 0.25 # (seconds)
+null_frame_tolerance = 5 # (frames)
+download_raw_approaches = False
