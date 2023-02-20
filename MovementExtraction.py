@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import figure
 import math
 import shutil
 import cv2
@@ -9,6 +11,16 @@ import itertools
 # import time
 import os
 import specifications
+
+# general
+minutes_to_skip = specifications.minutes_to_skip
+frames_per_sec = specifications.frames_per_sec
+frames_to_skip = minutes_to_skip * frames_per_sec * frames_per_sec
+pixel_to_inch = specifications.pixel_to_inch
+debug = specifications.debug
+titles = specifications.titles
+download_raw_approaches = specifications.download_raw_approaches
+
 
 def main():
   
@@ -25,24 +37,14 @@ def main():
   
   # points
   # bodyDict = {0: 'nose', 2: 'right_ear', 4: 'left_ear', 6: 'back1', 8: 'back2', 10: 'back3', 12: 'back4', 14: 'tail_base', 16: 'tail_mid', 18: 'tail_end'}
-  
-  titles = specifications.titles
-  titles.append('time')
     
   csv_path = specifications.csv_path
-  pixel_to_inch = specifications.pixel_to_inch
-  minutes_to_skip = specifications.minutes_to_skip
-  frames_per_sec = specifications.frames_per_sec
-  debug = specifications.debug
-  
-  frames_to_skip = minutes_to_skip * frames_per_sec * frames_per_sec
-
+  video_path = specifications.video_path
+  video_type = specifications.video_type
   
   if (debug):
-    print("Running in verification mode...")
-    csv_path = input("\nEnter the full file path of the folder containig the video csv's: ")
+    print("Running in verification mode...") 
   else:
-    debug = False
     print("Not running in verification mode...")
     
   csv_list = []
@@ -56,14 +58,16 @@ def main():
   if not os.path.exists(main_path):
     os.mkdir(main_path)
   
+  # create a list of videos for cross checking analysis in debug mode
+  video_list = []
   if (debug):
-    video_list = []
-  
+    for filename in os.listdir(video_path):
+      f = os.path.join(video_path, filename)
+      if os.path.isfile(f):
+        video_list.append(f)
+
   # adds all the csv paths to a list
-  for filename in os.listdir(csv_path):
-    # if (verification_mode):
-    #   video_list.append()
-      
+  for filename in os.listdir(csv_path):      
     file_names.append(filename)
     f = os.path.join(csv_path, filename)
     if os.path.isfile(f):
@@ -75,6 +79,8 @@ def main():
     # create a file for every csv
     filename = file_names[i][: -4]
     working_directory = os.path.join(main_path, filename)
+    if (debug):
+      video_path = video_list[i]
     
     if not os.path.exists(working_directory):
       os.mkdir(working_directory)
@@ -119,7 +125,9 @@ def main():
         individual_pd[i] = individual_pd[i].iloc[frames_to_skip:]
         individual_pd[i].reset_index(drop=True, inplace=True)
   
-
+    animals = []
+    for i in range (len(individual_pd)):
+      animals.append('rat_{}'.format(i))
 
     #4. calculating velocity and distance in bins
     # assuming the nose is the basis of the movement
@@ -129,13 +137,11 @@ def main():
     if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
       print("Calculating velocity...")
       work = []
-      animals = []
       
       for i in range (len(individual_pd)):
-        w = (i, individual_pd, velocity_bin, frames_per_sec, pixel_to_inch)
+        w = (i, individual_pd, velocity_bin)
         work.append(w)
-        animals.append('rat_{}'.format(i))
-      
+        
       p = Pool(num_individuals)
       results = p.starmap(getVelocity, work)  
       
@@ -158,28 +164,33 @@ def main():
     else:
       print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
 
+
     
     #5. Calculating Approach behaviour
-    
     print("Calculating approach behavior...")
     directory = "Approach_Behavior"
     approach_directory = os.path.join(working_directory, directory)
+    matrix_path = working_directory + '\\approach_matrix.csv'
     
-    if not os.path.exists(approach_directory):
-      os.mkdir(approach_directory)
-      print("Directory '{}' created at '{}' ".format(directory, approach_directory))
+    if not os.path.exists(matrix_path):
+      # if download_raw_approaches and not os.path.exists(approach_directory):
+      #   os.mkdir(approach_directory)
+      #   print("Directory '{}' created at '{}' ".format(directory, approach_directory))
 
       work = []
       # num_individuals
       for i in range(num_individuals):
-        rat_path = approach_directory
-        directory = "rat_{}".format(i)
-        rat_path = os.path.join(rat_path, directory)
         
-        if not os.path.exists(rat_path):
-          os.mkdir(rat_path)
+        rat_path = None
+        if (download_raw_approaches):
+          rat_path = approach_directory
+          directory = "rat_{}".format(i)
+          rat_path = os.path.join(rat_path, directory)
+          
+          if not os.path.exists(rat_path):
+            os.mkdir(rat_path)
 
-        x = (approach_distance, approach_time, null_frame_tolerance, i, individual_pd, frames_to_skip, frames_per_sec, rat_path, pixel_to_inch, titles)
+        x = (approach_distance, approach_time, null_frame_tolerance, i, individual_pd, rat_path)
         work.append(x)
       
       p = Pool(num_individuals)
@@ -188,47 +199,60 @@ def main():
       # debugging verify frames
       saved_frames = []
       debugging_approaches = []
+      approach_matrix = np.array([], dtype=np.intc)
       for x in saved:
         saved_frames.append(x[0])
         debugging_approaches.append(x[1])
+        approach_matrix = np.append([approach_matrix], x[2])
+      
+      approach_matrix = approach_matrix.reshape(6, 6)
+      if (debug):
+        print(f'approach matrix: {approach_matrix}')
+      matrix_df = pd.DataFrame(approach_matrix, columns=animals,)
+      matrix_df = matrix_df.set_axis(animals, axis ='index')
+
+      matrix_df.to_csv(matrix_path)
       
       print("\t ...done")
+      if (debug):
+        print(len(saved_frames))
+        print(len(debugging_approaches))
+      
+      if (debug):
+        for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
+          for (f, approach) in zip (group_of_frames, group_of_approach):
+            
+            cap = cv2.VideoCapture(video_path)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, f)            
+            
+            if (cap.isOpened()== False): 
+              print("Error opening video stream or file")
+            ret, frame = cap.read()
+            
+            if ret == True:
+              # Display the resulting frame
+              print("Frame: {}, {}".format(f, approach))
+              cv2.imshow('Frame', frame)
+              
+              # plt.plot([approach[0]], [720 - approach[1]], 'ro')
+              # plt.axis([0, 1280, 0, 720])
+              # plt.show()
+                        
+              # press any button to go to next frame
+              cv2.waitKey(0)
+              
+        cap.release()
+        
+        # Closes all the frames
+        cv2.destroyAllWindows()
     
     else:
       print("Skipping Approach Behavior calculations because directory 'Approach_Behavior' already exists")
     
-    # video_path = 'C:\\Users\\micha\\MonfilsLab\\analysis\\Videos\\SUNP0007DLC_resnet50_MovementLabDec16shuffle1_350000_full.mp4'
-
-    # for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
-      
-    #   for (f, approach) in zip (group_of_frames, group_of_approach):
-        
-    #     cap = cv2.VideoCapture(video_path)
-    #     cap.set(cv2.CAP_PROP_POS_FRAMES, f)
-        
-    #     if (cap.isOpened()== False): 
-    #       print("Error opening video stream or file")
-    #     ret, frame = cap.read()
-        
-    #     if ret == True:
-    #       # Display the resulting frame
-    #       print("Frame: {}, {}".format(f, approach))
-    #       cv2.imshow('Frame', frame)
-    #       # press any button to go to next frame
-    #       cv2.waitKey(0)
-          
-    # cap.release()
     
-    # # Closes all the frames
-    # cv2.destroyAllWindows()
-      
-    # print("\t ...done")
     
     #6. creating an average position point, not including tail data
-    # doing so for each animal is done simultanesouly on a different thread
-
-    #creating and start a list of tasks (getAverage)
-    
+    # each animal's calcualtions is done simultanesouly on a different thread
     directory = "Average_Position"  
     path = os.path.join(working_directory, directory)
         
@@ -353,7 +377,14 @@ def main():
       # create csv of all clusters
       cluster_csv = pd.DataFrame()
       cluster_csv['clusters'] = all_clusters
-      cluster_csv['frame'] = cluster_frames
+      initial_time = []
+      durations = []
+      for group in cluster_frames:
+        initial_time.append(getTime(group[0]))
+        durations.append(len(group)/60)
+        
+      cluster_csv['time_stamp'] = initial_time
+      cluster_csv['duration_seconds'] = durations
       cluster_csv.to_csv(raw_path)
       
       # create a csv of just counts of cluster amounts                   
@@ -362,36 +393,37 @@ def main():
         print(counts[i])
         cluster_totals[f'size_{i + 1}'] = [counts[i]]
       cluster_totals.to_csv(cluster_path)
+      
+      if (debug):
+        # testing code: manually check frames at identified clusters
+        for (group, clusters) in zip(cluster_frames, all_clusters):
+          print(video_path)
+          cap = cv2.VideoCapture(video_path)
+          
+          for f in group:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+            
+            if (not cap.isOpened()): 
+              print("Error opening video stream or file")
+            
+            ret, frame = cap.read()
+            if ret == True:
+              # Display the resulting frame
+              printTime(f)
+              print("Group size: {}".format(len(clusters)))
+              cv2.imshow('Frame', frame)
+              # press any button to go to next frame
+              cv2.waitKey(0)
+            
+        cap.release()
+        
+        # Closes all the frames
+        cv2.destroyAllWindows()
     
     else:
-      print("Skipping Cluster calculations because directory Average_Point exists")
+      print("Skipping Cluster calculations because directory Raw_Clusters exists")
 
-      
-    # # testing code: manually check frames at identified clusters    
-    # video_path = 'C:\\Users\\micha\\MonfilsLab\\analysis\\Videos\\SUNP0007DLC_resnet50_MovementLabDec16shuffle1_350000_full.mp4'
-
-    # for (f, clusters) in zip(cluster_frames, all_clusters):
-      
-    #   cap = cv2.VideoCapture(video_path)
-    #   cap.set(cv2.CAP_PROP_POS_FRAMES, f)
-      
-    #   if (cap.isOpened()== False): 
-    #     print("Error opening video stream or file")
-    #   ret, frame = cap.read()
-      
-    #   if ret == True:
-    #     # Display the resulting frame
-    #     printTime(f)
-    #     print("Group size: {}".format(len(clusters[0])))
-    #     cv2.imshow('Frame', frame)
-    #     # press any button to go to next frame
-    #     cv2.waitKey(0)
-        
-    # cap.release()
     
-    # # Closes all the frames
-    # cv2.destroyAllWindows()
-
 class Combination:
   def __init__(self, threshold: int, comb: list) -> None:
     self.framesLeft = threshold
@@ -427,7 +459,7 @@ class Combination:
   def getList(self) -> list:
     return self.comb
   
-def getVelocity(i, individual_pd: list, velocity_bin: int, frames_per_sec: float, pixel_to_inch: float):  
+def getVelocity(i: int, individual_pd: list, velocity_bin: int):  
   
   max_inputs = (len(individual_pd[i]) // velocity_bin)
 
@@ -474,12 +506,6 @@ def getVelocity(i, individual_pd: list, velocity_bin: int, frames_per_sec: float
 def contain(clusters: list, comb: list) -> bool:
     for group in clusters:
       if (any(item in group for item in comb) == True):
-        # for x in group:
-        #   print(x)
-        # print("---Contains---")
-        # for y in comb:
-        #   print(y)
-        # print("--------------")
         return True
     return False
 
@@ -550,15 +576,16 @@ def isACluster(arr: list[Rat_Point], threshold: int, pixel_to_inch: float) -> bo
 
 # for a given rat i, returns (num_individuals - 1) dataframes, each one is the interaction of 
 # rat i on rat j
-def trackRatX(approach_distance: float, approach_time: float, null_frame_tolerance: int, i: int, individual_pd, frames_to_skip: int, frames_per_sec: int, rat_path: str, pixel_to_inch: float, titles: list):
+def trackRatX(approach_distance: float, approach_time: float, null_frame_tolerance: int, i: int, individual_pd: list, rat_path: str):
   # print('I am number %d in process %d' % (i, os.getpid()))
 
   # how many frames the rat should be < 'approach_distance' from another to count as an approach behaviours
-  approach_frames = round(approach_time * frames_per_sec) 
-  
+  approach_frames = round(approach_time * frames_per_sec)  
   
   # each element in approach_singular is a DataFrame of interactions with the other rats
   approach_singular = []
+  
+  counts = np.zeros(len(individual_pd), dtype=np.intc)  
   saved_frames = []
   debugging_approaches = []
   
@@ -571,7 +598,7 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
       path = rat_path
       if (i != j):
           frame = 0 # total frames = frame + skipped frames
-          engagement_frames = 0 # number of frames 
+          engagement_frames = 0 # number of frames less than a distance
           null_frames = 0
           # go through the whole video comparing rat i with rat j
           while frame < (len(individual_pd[i])):
@@ -582,52 +609,59 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
               
               bodyparts = individual_pd[j].iloc[frame, :]
               min_index, min_distance, min_list = findMinDistance(bodyparts, nose_x, nose_y, pixel_to_inch)
-              
-              minute = ( (frame + frames_to_skip) / frames_per_sec) / 60
+                            
+              # minute = ((frame + frames_to_skip) / frames_per_sec) / 60
               if (not min_index is None and min_distance < approach_distance):
                 engagement_frames += 1
                 if (engagement_frames >= approach_frames):
-                  # add the time stamp to the last column and append the row to the dataframe
-                  min_list[-1] = minute
-                  
+                  # add the time stamp to the last column and append the row to the dataframe                  
                   # for debugging keep a list of interactions and the frames they happen
-                  adjusted_frame = frame + frames_to_skip - approach_frames
-                  saved_frames.append(adjusted_frame)
-                  debugging_approaches.append('rat{}_to_{}'.format(i, titles[min_index//2]))
+                  if (debug):
+                    adjusted_frame = frame + frames_to_skip - approach_frames
+                    saved_frames.append(adjusted_frame)
+                    debugging_approaches.append([nose_x, nose_y])
                   
-                  approach_to_j.loc[len(approach_to_j.index)] = min_list
+                  counts[j] += 1
+                  
+                  if (download_raw_approaches):
+                    min = pd.DataFrame(min_list).T
+                    min.columns = titles
+                    approach_to_j = pd.concat([approach_to_j, min], axis=0, ignore_index=True)
                   
                   engagement_frames = 0
+                  null_frames = 0
                 
               elif (min_index is None and null_frames < null_frame_tolerance):
                 null_frames += 1
   
               else:
                 engagement_frames = 0
-              
+                null_frames = 0
               
               frame += 1
-          
-          approach_singular.append(approach_to_j)
+              
+          if (download_raw_approaches):
+            approach_singular.append(approach_to_j)
           # save csv
           # approach_to_j.to_csv(path_or_buf = "C:/Users/micha/MonfilsLab/analysis/csv/rat{}_to_rat{}.csv".format(i, j))
-      else:
+      elif (download_raw_approaches):
           approach_singular.append(['same animal'])
 
-      filename = "rat{}_to_rat{}.csv".format(i, j)
-      path = os.path.join(path, filename)
-      approach_to_j.to_csv(path_or_buf=path)
-       
-  return saved_frames, debugging_approaches
+      if (download_raw_approaches):
+        filename = "rat{}_to_rat{}.csv".format(i, j)
+        path = os.path.join(path, filename)
+        approach_to_j.to_csv(path_or_buf=path)
+  
+  return saved_frames, debugging_approaches, counts
   
 # from a list of x and y opints for body parts, return the min and its index
 def findMinDistance(bodyparts: list, nose_x: float, nose_y: float, pixel_to_inch: float):
     min_index = -1
     min_distance = 1_000
+    min_list = [None] * (round(len(bodyparts) / 2))
+    # len(min_list) == 11
     
     i = 0
-    min_list = [None] * (round(len(bodyparts) / 2) + 1)
-    
     while (i < len(bodyparts)):
         part_x = bodyparts[i]
         part_y = bodyparts[i + 1]
@@ -697,7 +731,6 @@ def getAverage(individual_pd, i):
   
   return average_pd
 
-
 def time_convert(sec):
   mins = sec // 60
   sec = sec % 60
@@ -710,6 +743,10 @@ def printTime(frame: int) -> None:
   min = frame // 3600
   print(f'Frame: {frame}, Minute: {min}, Second: {sec}')
   
+def getTime(frame: int) -> None:
+  sec = frame // 60 % 60
+  min = frame // 3600
+  return(f'{min}:{sec}')
 
 if __name__ == "__main__":
  main()
