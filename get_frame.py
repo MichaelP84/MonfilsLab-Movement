@@ -1,42 +1,37 @@
 import cv2
 import os
 import numpy as np
+import specifications
 
-
+frames_to_skip = specifications.minutes_to_skip * 60 * 60
 saved_path = 'Screenshots'
 full_dir = os.getcwd()
 directory = os.path.join(full_dir, saved_path)
 
-
 if (not os.path.exists(saved_path)):
   os.mkdir(saved_path)
 
-
-for video in os.listdir('./Videos'):
-  f = os.path.join(directory, video)
-
+for i, video in enumerate(os.listdir(specifications.video_path)):
+  f = os.path.join(specifications.video_path, video)
   print(f)
+  
+  cap = cv2.VideoCapture(f)
 
-# video = './SUNP0007/SUNP0007.MOV'
-# cap = cv2.VideoCapture(video)
+  if (cap.isOpened() == False): 
+    print("Error opening video stream or file")
 
-# if (cap.isOpened()== False): 
-#   print("Error opening video stream or file")
+  cap.set(cv2.CAP_PROP_POS_FRAMES, frames_to_skip)
+  ret, frame = cap.read()
 
-# ret, frame = cap.read()
+  if ret == True:
 
-# if ret == True:
-#     cv2.imshow('Frame',frame)
-
-#     # Filename
-#     filename = 'savedImage.jpg'
+      # Filename
+      filename = (f'savedImage_{i}.jpg')
       
-#     # Using cv2.imwrite() method
-#     # Saving the image
-#     cv2.imwrite(filename, frame)
+      # Using cv2.imwrite() method
+      # Saving the image
+      cv2.imwrite(os.path.join(directory, filename), frame)
 
-#     if cv2.waitKey(2000) & 0xFF == ord('q'):
-#         cap.release()
- 
-# # Closes all the frames
-# cv2.destroyAllWindows() 
+
+# Closes all the frames
+cv2.destroyAllWindows() 
