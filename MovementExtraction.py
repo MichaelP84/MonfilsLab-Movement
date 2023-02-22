@@ -124,45 +124,46 @@ def main():
     for i in range(len(individual_pd)):
         individual_pd[i] = individual_pd[i].iloc[frames_to_skip:]
         individual_pd[i].reset_index(drop=True, inplace=True)
-  
+
     animals = []
     for i in range (len(individual_pd)):
       animals.append('rat_{}'.format(i))
 
-    #4. calculating velocity and distance in bins
-    # assuming the nose is the basis of the movement
-    # curently skips over nan values
-    velocity_path = os.path.join(working_directory, 'velocity.csv')
-    distance_path = os.path.join(working_directory, 'total_distance.csv')
-    if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
-      print("Calculating velocity...")
-      work = []
-      
-      for i in range (len(individual_pd)):
-        w = (i, individual_pd, velocity_bin)
-        work.append(w)
-        
-      p = Pool(num_individuals)
-      results = p.starmap(getVelocity, work)  
-      
-      velocity = pd.DataFrame()
-      total_distance = pd.DataFrame()
 
-      for i in range(len(results)):
-        total_distance['rat_{}'.format(i)] = [results[i][1]]
-        velocity['rat_{}'.format(i)] = results[i][0]
+    # #4. calculating velocity and distance in bins
+    # # assuming the nose is the basis of the movement
+    # # curently skips over nan values
+    # velocity_path = os.path.join(working_directory, 'velocity.csv')
+    # distance_path = os.path.join(working_directory, 'total_distance.csv')
+    # if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
+    #   print("Calculating velocity...")
+    #   work = []
       
-      velocity.to_csv(velocity_path)
-      total_distance.to_csv(distance_path)
+    #   for i in range (len(individual_pd)):
+    #     w = (i, individual_pd, velocity_bin)
+    #     work.append(w)
 
-      print("\t ...done")
+    #   p = Pool(num_individuals)
+    #   results = p.starmap(getVelocity, work)  
+      
+    #   velocity = pd.DataFrame()
+    #   total_distance = pd.DataFrame()
+
+    #   for i in range(len(results)):
+    #     total_distance['rat_{}'.format(i)] = [results[i][1]]
+    #     velocity['rat_{}'.format(i)] = results[i][0]
+      
+    #   velocity.to_csv(velocity_path)
+    #   total_distance.to_csv(distance_path)
+
+    #   print("\t ...done")
     
-      if (debug):
-        print(total_distance.head())
-        print(velocity.head())
+    #   if (debug):
+    #     print(total_distance.head())
+    #     print(velocity.head())
         
-    else:
-      print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
+    # else:
+    #   print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
 
 
     
@@ -251,177 +252,177 @@ def main():
     
     
     
-    #6. creating an average position point, not including tail data
-    # each animal's calcualtions is done simultanesouly on a different thread
-    directory = "Average_Position"  
-    path = os.path.join(working_directory, directory)
+    # #6. creating an average position point, not including tail data
+    # # each animal's calcualtions is done simultanesouly on a different thread
+    # directory = "Average_Position"  
+    # path = os.path.join(working_directory, directory)
         
-    # if the avg position calculations have not been run already, run them
-    if not os.path.exists(path):
-      #shutil.rmtree(path) deletes a folder
-      os.mkdir(path)
-      print("Directory '{}' created at '{}' ".format(directory, path))
-      work = []
+    # # if the avg position calculations have not been run already, run them
+    # if not os.path.exists(path):
+    #   #shutil.rmtree(path) deletes a folder
+    #   os.mkdir(path)
+    #   print("Directory '{}' created at '{}' ".format(directory, path))
+    #   work = []
 
-      for i in range (len(individual_pd)):
-        x = (individual_pd, i)
-        work.append(x)
+    #   for i in range (len(individual_pd)):
+    #     x = (individual_pd, i)
+    #     work.append(x)
       
-      p = Pool(num_individuals)
-      average_pd = p.starmap(getAverage, work)  
+    #   p = Pool(num_individuals)
+    #   average_pd = p.starmap(getAverage, work)  
       
-      for i, avg in enumerate(average_pd):
-        filename = "rat{}_avg.csv".format(i)
-        single_path = os.path.join(path, filename)
-        avg.to_csv(path_or_buf=single_path)
-        print(avg)
+    #   for i, avg in enumerate(average_pd):
+    #     filename = "rat{}_avg.csv".format(i)
+    #     single_path = os.path.join(path, filename)
+    #     avg.to_csv(path_or_buf=single_path)
+
     
-    # otherwise, load data from existing folder
-    else:
-      print("Skipping Average Point calculations because directory Average_Point exists")
-      average_pd = []
-      for i, csv in enumerate(os.listdir(path)):
-        f = os.path.join(path, csv)
-        data = pd.read_csv(f)
-        data = data.drop(data.columns[0], axis=1)
-        average_pd.append(data)
+    # # otherwise, load data from existing folder
+    # else:
+    #   print("Skipping Average Point calculations because directory Average_Point exists")
+    #   average_pd = []
+    #   for i, csv in enumerate(os.listdir(path)):
+    #     f = os.path.join(path, csv)
+    #     data = pd.read_csv(f)
+    #     data = data.drop(data.columns[0], axis=1)
+    #     average_pd.append(data)
         
         
-    #7. find clusters
-    directory = "raw_cluster.csv"
-    raw_path = os.path.join(working_directory, directory)
+    # #7. find clusters
+    # directory = "raw_cluster.csv"
+    # raw_path = os.path.join(working_directory, directory)
     
-    directory = "cluster_totals.csv"
-    cluster_path = os.path.join(working_directory, directory)
+    # directory = "cluster_totals.csv"
+    # cluster_path = os.path.join(working_directory, directory)
     
-    if not os.path.exists(cluster_path) or not os.path.exists(raw_path):
+    # if not os.path.exists(cluster_path) or not os.path.exists(raw_path):
           
-      print("Clustering: ")
-      all_clusters = []
-      cluster_frames = []
-      num_frames = len(average_pd[0])
-      counts = [0] * (num_individuals)
-      memory = []
+    #   print("Clustering: ")
+    #   all_clusters = []
+    #   cluster_frames = []
+    #   num_frames = len(average_pd[0])
+    #   counts = [0] * (num_individuals)
+    #   memory = []
       
-      for frame in range (num_frames):
-        # print("Frame{}/{}".format(frame, len(individual_pd[0])))
-        Rat_Point_list = []
+    #   for frame in range (num_frames):
+    #     # print("Frame{}/{}".format(frame, len(individual_pd[0])))
+    #     Rat_Point_list = []
         
-        # create a list of rat_point objects for each rat that is not null
-        i = 0
-        while i < len(individual_pd):
-          avg_x1, avg_y1 = average_pd[i].iloc[frame, : ]      
-          if (not math.isnan(avg_x1)):
-            rat = Rat_Point(avg_x1, avg_y1, str(i))
-            Rat_Point_list.append(rat)
-          i += 1
+    #     # create a list of rat_point objects for each rat that is not null
+    #     i = 0
+    #     while i < len(individual_pd):
+    #       avg_x1, avg_y1 = average_pd[i].iloc[frame, : ]      
+    #       if (not math.isnan(avg_x1)):
+    #         rat = Rat_Point(avg_x1, avg_y1, str(i))
+    #         Rat_Point_list.append(rat)
+    #       i += 1
           
-        # print("Number of rats: {}".format(len(Rat_Point_list)))   
+    #     # print("Number of rats: {}".format(len(Rat_Point_list)))   
 
-        # for group size 3 - 9 inclusize,
-        # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3: 1, 4: 2, 5: 3, 6: 3.8, 7:6, 8:7, 9:8}
-        if (len(Rat_Point_list) >= 3):
-          clusters = []
-          # start at the max size group to skip over checking subgroups of large clusters that are identified
-          for group_size in reversed(range(3, len(Rat_Point_list) + 1)):
-            combinations = getCombinations(Rat_Point_list, group_size)
-            # print("For group size: {}".format(group_size))
+    #     # for group size 3 - 9 inclusize,
+    #     # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
+    #     thresholds = {3: 1, 4: 2, 5: 3, 6: 3.8, 7:6, 8:7, 9:8}
+    #     if (len(Rat_Point_list) >= 3):
+    #       clusters = []
+    #       # start at the max size group to skip over checking subgroups of large clusters that are identified
+    #       for group_size in reversed(range(3, len(Rat_Point_list) + 1)):
+    #         combinations = getCombinations(Rat_Point_list, group_size)
+    #         # print("For group size: {}".format(group_size))
 
-            for comb in combinations: 
-              # if the combination is not already a subgroup of a cluster
-              if (not contain(clusters, comb)):
-                if (isACluster(comb, thresholds[group_size], pixel_to_inch)):
-                  # print("\tcluster size: {}, found".format(group_size))
-                  # print("\t\tcontains the following:")
+    #         for comb in combinations: 
+    #           # if the combination is not already a subgroup of a cluster
+    #           if (not contain(clusters, comb)):
+    #             if (isACluster(comb, thresholds[group_size], pixel_to_inch)):
+    #               # print("\tcluster size: {}, found".format(group_size))
+    #               # print("\t\tcontains the following:")
                   
-                  # if we havent seen this combination within the past frames (is not in memory)
-                  # add it to memory
-                  inMemory = False
-                  for mem_comb in memory:
-                    if (mem_comb.wraps(comb)):
-                      mem_comb.subtract()
-                      inMemory = True
-                  if (not inMemory):
-                    c = Combination(cluster_threshold, comb)
-                    memory.append(c)
+    #               # if we havent seen this combination within the past frames (is not in memory)
+    #               # add it to memory
+    #               inMemory = False
+    #               for mem_comb in memory:
+    #                 if (mem_comb.wraps(comb)):
+    #                   mem_comb.subtract()
+    #                   inMemory = True
+    #               if (not inMemory):
+    #                 c = Combination(cluster_threshold, comb)
+    #                 memory.append(c)
                             
-                  clusters.append(comb)
+    #               clusters.append(comb)
                   
-                  # print("\t\t{}".format(rat.getName()))
+    #               # print("\t\t{}".format(rat.getName()))
             
-        # print(f'memory: {memory}')
+    #     # print(f'memory: {memory}')
 
-        # after looking at all cominations in this frame
-        # see if a combination in memory dropped out
-        for mem_comb in memory:
-          if not mem_comb.isWithin(clusters) and not mem_comb.hasBuffer():
-            if (mem_comb.isCleared()):
-              all_clusters.append(mem_comb.getList())
-              cluster_frames.append(mem_comb.getFrames())
-              counts[len(mem_comb.getList()) - 1] += 1
+    #     # after looking at all cominations in this frame
+    #     # see if a combination in memory dropped out
+    #     for mem_comb in memory:
+    #       if not mem_comb.isWithin(clusters) and not mem_comb.hasBuffer():
+    #         if (mem_comb.isCleared()):
+    #           all_clusters.append(mem_comb.getList())
+    #           cluster_frames.append(mem_comb.getFrames())
+    #           counts[len(mem_comb.getList()) - 1] += 1
               
-            memory.remove(mem_comb)
-          elif not mem_comb.isWithin(clusters) and mem_comb.hasBuffer():
-            # 4 buffer frames allow a cluster to have some missing point data 
-            mem_comb.buffer()
-            mem_comb.addFrame(frame + frames_to_skip)
-          else:
-            mem_comb.addFrame(frame + frames_to_skip)
+    #         memory.remove(mem_comb)
+    #       elif not mem_comb.isWithin(clusters) and mem_comb.hasBuffer():
+    #         # 4 buffer frames allow a cluster to have some missing point data 
+    #         mem_comb.buffer()
+    #         mem_comb.addFrame(frame + frames_to_skip)
+    #       else:
+    #         mem_comb.addFrame(frame + frames_to_skip)
       
-      proportion_in_cluster = len(cluster_frames) / num_frames
-      print("{} of all frames have a cluster".format(proportion_in_cluster))
-      print(len(all_clusters))
-      print(len(cluster_frames))
+    #   proportion_in_cluster = len(cluster_frames) / num_frames
+    #   print("{} of all frames have a cluster".format(proportion_in_cluster))
+    #   print(len(all_clusters))
+    #   print(len(cluster_frames))
       
-      # create csv of all clusters
-      cluster_csv = pd.DataFrame()
-      cluster_csv['clusters'] = all_clusters
-      initial_time = []
-      durations = []
-      for group in cluster_frames:
-        initial_time.append(getTime(group[0]))
-        durations.append(len(group)/60)
+    #   # create csv of all clusters
+    #   cluster_csv = pd.DataFrame()
+    #   cluster_csv['clusters'] = all_clusters
+    #   initial_time = []
+    #   durations = []
+    #   for group in cluster_frames:
+    #     initial_time.append(getTime(group[0]))
+    #     durations.append(len(group)/60)
         
-      cluster_csv['time_stamp'] = initial_time
-      cluster_csv['duration_seconds'] = durations
-      cluster_csv.to_csv(raw_path)
+    #   cluster_csv['time_stamp'] = initial_time
+    #   cluster_csv['duration_seconds'] = durations
+    #   cluster_csv.to_csv(raw_path)
       
-      # create a csv of just counts of cluster amounts                   
-      cluster_totals = pd.DataFrame()
-      for i in range(num_individuals):
-        print(counts[i])
-        cluster_totals[f'size_{i + 1}'] = [counts[i]]
-      cluster_totals.to_csv(cluster_path)
+    #   # create a csv of just counts of cluster amounts                   
+    #   cluster_totals = pd.DataFrame()
+    #   for i in range(num_individuals):
+    #     print(counts[i])
+    #     cluster_totals[f'size_{i + 1}'] = [counts[i]]
+    #   cluster_totals.to_csv(cluster_path)
       
-      if (debug):
-        # testing code: manually check frames at identified clusters
-        for (group, clusters) in zip(cluster_frames, all_clusters):
-          print(video_path)
-          cap = cv2.VideoCapture(video_path)
+    #   if (debug):
+    #     # testing code: manually check frames at identified clusters
+    #     for (group, clusters) in zip(cluster_frames, all_clusters):
+    #       print(video_path)
+    #       cap = cv2.VideoCapture(video_path)
           
-          for f in group:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+    #       for f in group:
+    #         cap.set(cv2.CAP_PROP_POS_FRAMES, f)
             
-            if (not cap.isOpened()): 
-              print("Error opening video stream or file")
+    #         if (not cap.isOpened()): 
+    #           print("Error opening video stream or file")
             
-            ret, frame = cap.read()
-            if ret == True:
-              # Display the resulting frame
-              printTime(f)
-              print("Group size: {}".format(len(clusters)))
-              cv2.imshow('Frame', frame)
-              # press any button to go to next frame
-              cv2.waitKey(0)
+    #         ret, frame = cap.read()
+    #         if ret == True:
+    #           # Display the resulting frame
+    #           printTime(f)
+    #           print("Group size: {}".format(len(clusters)))
+    #           cv2.imshow('Frame', frame)
+    #           # press any button to go to next frame
+    #           cv2.waitKey(0)
             
-        cap.release()
+    #     cap.release()
         
-        # Closes all the frames
-        cv2.destroyAllWindows()
+    #     # Closes all the frames
+    #     cv2.destroyAllWindows()
     
-    else:
-      print("Skipping Cluster calculations because directory Raw_Clusters exists")
+    # else:
+    #   print("Skipping Cluster calculations because directory Raw_Clusters exists")
 
     
 class Combination:
@@ -467,7 +468,7 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
   total_distance = 0
   
   frame = 0
-  while frame <= len(individual_pd[i]):
+  while frame < len(individual_pd[i]):
       # get current x and y position
       prev_x, prev_y = individual_pd[i].iloc[frame, :2] # 2 refers to nose, -2 would be avg (columns in list)
       # skipping over nan frames
@@ -477,14 +478,15 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
       
       # get next non-nan x and y position
       frame += velocity_bin
-      if (frame <= len(individual_pd[i])):
+      if (frame < len(individual_pd[i])):
           next_x, next_y = individual_pd[i].iloc[frame, :2]
           
           frames_added = 0
-          while (math.isnan(next_x)): # continue adding frames until next non-nan frame
+          while (math.isnan(next_x) and frame < len(individual_pd[0])): # continue adding frames until next non-nan frame
               frame += 1
               frames_added += 1
-              next_x, next_y = individual_pd[i].iloc[frame, :2]
+              if (frame < len(individual_pd[0])):
+                next_x, next_y = individual_pd[i].iloc[frame, :2]
           
           #calculate the distance traveled in the bin for total distance and velocity
           dist = getDistance(prev_x, prev_y, next_x, next_y, pixel_to_inch)
@@ -543,7 +545,7 @@ class Rat_Point:
     return getDistance(self.x, self.y, other_x, other_y, pixel_to_inch)
   
 
-def getCombinations(arr: list[Rat_Point], choose: int):
+def getCombinations(arr: list, choose: int):
   combinations = []
   for comb in itertools.combinations(arr, choose):
     combinations.append(comb)
@@ -551,7 +553,7 @@ def getCombinations(arr: list[Rat_Point], choose: int):
   return combinations
   
 
-def isACluster(arr: list[Rat_Point], threshold: int, pixel_to_inch: float) -> bool:
+def isACluster(arr: list, threshold: int, pixel_to_inch: float) -> bool:
   count = 0
   sum_x = 0
   sum_y = 0
@@ -578,6 +580,7 @@ def isACluster(arr: list[Rat_Point], threshold: int, pixel_to_inch: float) -> bo
 # rat i on rat j
 def trackRatX(approach_distance: float, approach_time: float, null_frame_tolerance: int, i: int, individual_pd: list, rat_path: str):
   # print('I am number %d in process %d' % (i, os.getpid()))
+  print ("started task {}".format(i))
 
   # how many frames the rat should be < 'approach_distance' from another to count as an approach behaviours
   approach_frames = round(approach_time * frames_per_sec)  
@@ -589,7 +592,7 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
   saved_frames = []
   debugging_approaches = []
   
-  for j in range (len(individual_pd)):    
+  for j in range (len(individual_pd)):
       # there is a column for every body parts, the rows indicate interactions
       # also a column for time of interactions
       approach_to_j = pd.DataFrame(columns=titles)
@@ -597,16 +600,18 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
       #comparing every animal to each other, so exclude comparing to self
       path = rat_path
       if (i != j):
-          frame = 0 # total frames = frame + skipped frames
-          engagement_frames = 0 # number of frames less than a distance
-          null_frames = 0
-          # go through the whole video comparing rat i with rat j
-          while frame < (len(individual_pd[i])):
-              nose_x, nose_y = individual_pd[i].iloc[frame, :2]
-              while (math.isnan(nose_x)):
-                  frame += 1
+        frame = 0 # total frames = frame + skipped frames
+        engagement_frames = 0 # number of frames less than a distance
+        null_frames = 0
+        # go through the whole video comparing rat i with rat j
+        while frame < (len(individual_pd[i])):
+            nose_x, nose_y = individual_pd[i].iloc[frame, :2]
+            while (math.isnan(nose_x) and frame < len(individual_pd[i])):
+                frame += 1
+                if frame < len(individual_pd[i]):
                   nose_x, nose_y = individual_pd[i].iloc[frame, :2]
-              
+
+            if (frame < len(individual_pd[i])):
               bodyparts = individual_pd[j].iloc[frame, :]
               min_index, min_distance, min_list = findMinDistance(bodyparts, nose_x, nose_y, pixel_to_inch)
                             
@@ -633,17 +638,17 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
                 
               elif (min_index is None and null_frames < null_frame_tolerance):
                 null_frames += 1
-  
+
               else:
                 engagement_frames = 0
                 null_frames = 0
               
               frame += 1
-              
-          if (download_raw_approaches):
-            approach_singular.append(approach_to_j)
-          # save csv
-          # approach_to_j.to_csv(path_or_buf = "C:/Users/micha/MonfilsLab/analysis/csv/rat{}_to_rat{}.csv".format(i, j))
+            
+        if (download_raw_approaches):
+          approach_singular.append(approach_to_j)
+        # save csv
+        # approach_to_j.to_csv(path_or_buf = "C:/Users/micha/MonfilsLab/analysis/csv/rat{}_to_rat{}.csv".format(i, j))
       elif (download_raw_approaches):
           approach_singular.append(['same animal'])
 
@@ -652,6 +657,7 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
         path = os.path.join(path, filename)
         approach_to_j.to_csv(path_or_buf=path)
   
+  print ("finished task {}".format(i))
   return saved_frames, debugging_approaches, counts
   
 # from a list of x and y opints for body parts, return the min and its index
