@@ -20,7 +20,8 @@ pixel_to_inch = specifications.pixel_to_inch
 debug = specifications.debug
 titles = specifications.titles
 download_raw_approaches = specifications.download_raw_approaches
-
+# Blue color in BGR
+color = (255, 0, 0)
 
 def main():
   
@@ -130,40 +131,40 @@ def main():
       animals.append('rat_{}'.format(i))
 
 
-    # #4. calculating velocity and distance in bins
-    # # assuming the nose is the basis of the movement
-    # # curently skips over nan values
-    # velocity_path = os.path.join(working_directory, 'velocity.csv')
-    # distance_path = os.path.join(working_directory, 'total_distance.csv')
-    # if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
-    #   print("Calculating velocity...")
-    #   work = []
+    #4. calculating velocity and distance in bins
+    # assuming the nose is the basis of the movement
+    # curently skips over nan values
+    velocity_path = os.path.join(working_directory, 'velocity.csv')
+    distance_path = os.path.join(working_directory, 'total_distance.csv')
+    if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
+      print("Calculating velocity...")
+      work = []
       
-    #   for i in range (len(individual_pd)):
-    #     w = (i, individual_pd, velocity_bin)
-    #     work.append(w)
+      for i in range (len(individual_pd)):
+        w = (i, individual_pd, velocity_bin)
+        work.append(w)
 
-    #   p = Pool(num_individuals)
-    #   results = p.starmap(getVelocity, work)  
+      p = Pool(num_individuals)
+      results = p.starmap(getVelocity, work)  
       
-    #   velocity = pd.DataFrame()
-    #   total_distance = pd.DataFrame()
+      velocity = pd.DataFrame()
+      total_distance = pd.DataFrame()
 
-    #   for i in range(len(results)):
-    #     total_distance['rat_{}'.format(i)] = [results[i][1]]
-    #     velocity['rat_{}'.format(i)] = results[i][0]
+      for i in range(len(results)):
+        total_distance['rat_{}'.format(i)] = [results[i][1]]
+        velocity['rat_{}'.format(i)] = results[i][0]
       
-    #   velocity.to_csv(velocity_path)
-    #   total_distance.to_csv(distance_path)
+      velocity.to_csv(velocity_path)
+      total_distance.to_csv(distance_path)
 
-    #   print("\t ...done")
+      print("\t ...done")
     
-    #   if (debug):
-    #     print(total_distance.head())
-    #     print(velocity.head())
+      if (debug):
+        print(total_distance.head())
+        print(velocity.head())
         
-    # else:
-    #   print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
+    else:
+      print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
 
 
     
@@ -206,39 +207,40 @@ def main():
         debugging_approaches.append(x[1])
         approach_matrix = np.append([approach_matrix], x[2])
       
+      print (saved_frames)
+
       approach_matrix = approach_matrix.reshape(6, 6)
       if (debug):
         print(f'approach matrix: {approach_matrix}')
       matrix_df = pd.DataFrame(approach_matrix, columns=animals,)
       matrix_df = matrix_df.set_axis(animals, axis ='index')
-
       matrix_df.to_csv(matrix_path)
-      
+               
       print("\t ...done")
       if (debug):
-        print(len(saved_frames))
-        print(len(debugging_approaches))
+        print((saved_frames[0][0]))
+        print((debugging_approaches[0][0]))
       
       if (debug):
+        cap = cv2.VideoCapture(video_path)
         for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
           for (f, approach) in zip (group_of_frames, group_of_approach):
-            
-            cap = cv2.VideoCapture(video_path)
+            f = int(f)
             cap.set(cv2.CAP_PROP_POS_FRAMES, f)            
             
-            if (cap.isOpened()== False): 
+            if (cap.isOpened() == False): 
               print("Error opening video stream or file")
             ret, frame = cap.read()
-            
+
+            center_coordinates = (int(approach[0]), int(approach[1]))
+            radius = int(convertInchToPixel(approach_distance))
+            frame = cv2.circle(frame, center_coordinates, radius, color, 2)
+
             if ret == True:
               # Display the resulting frame
-              print("Frame: {}, {}".format(f, approach))
+              print("Frame: {}, Nose: {}".format(f, approach))
               cv2.imshow('Frame', frame)
               
-              # plt.plot([approach[0]], [720 - approach[1]], 'ro')
-              # plt.axis([0, 1280, 0, 720])
-              # plt.show()
-                        
               # press any button to go to next frame
               cv2.waitKey(0)
               
@@ -332,7 +334,7 @@ def main():
     #         for comb in combinations: 
     #           # if the combination is not already a subgroup of a cluster
     #           if (not contain(clusters, comb)):
-    #             if (isACluster(comb, thresholds[group_size], pixel_to_inch)):
+    #             if (isACluster(comb, thresholds[group_size])):
     #               # print("\tcluster size: {}, found".format(group_size))
     #               # print("\t\tcontains the following:")
                   
@@ -489,7 +491,7 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
                 next_x, next_y = individual_pd[i].iloc[frame, :2]
           
           #calculate the distance traveled in the bin for total distance and velocity
-          dist = getDistance(prev_x, prev_y, next_x, next_y, pixel_to_inch)
+          dist = getDistance(prev_x, prev_y, next_x, next_y)
           total_distance += dist
           
           time = (velocity_bin + frames_added) / frames_per_sec
@@ -540,9 +542,9 @@ class Rat_Point:
   def isNan(self):
     return math.isnan(self.x)
   
-  def getPointDistance(self, Rat_Point, pixel_to_inch):
+  def getPointDistance(self, Rat_Point):
     other_x, other_y = Rat_Point.getCoordinates()
-    return getDistance(self.x, self.y, other_x, other_y, pixel_to_inch)
+    return getDistance(self.x, self.y, other_x, other_y)
   
 
 def getCombinations(arr: list, choose: int):
@@ -553,7 +555,7 @@ def getCombinations(arr: list, choose: int):
   return combinations
   
 
-def isACluster(arr: list, threshold: int, pixel_to_inch: float) -> bool:
+def isACluster(arr: list, threshold: int) -> bool:
   count = 0
   sum_x = 0
   sum_y = 0
@@ -568,7 +570,7 @@ def isACluster(arr: list, threshold: int, pixel_to_inch: float) -> bool:
   
   for rat in arr:
     rat_x, rat_y = rat.getCoordinates()
-    dist = getDistance(rat_x, rat_y, avg_x, avg_y, pixel_to_inch)
+    dist = getDistance(rat_x, rat_y, avg_x, avg_y)
     if dist > threshold:
       # print("not a cluster, distance: {} > threshold {}".format(dist, threshold))
       return False
@@ -612,17 +614,19 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
                   nose_x, nose_y = individual_pd[i].iloc[frame, :2]
 
             if (frame < len(individual_pd[i])):
+              
               bodyparts = individual_pd[j].iloc[frame, :]
-              min_index, min_distance, min_list = findMinDistance(bodyparts, nose_x, nose_y, pixel_to_inch)
-                            
-              # minute = ((frame + frames_to_skip) / frames_per_sec) / 60
+              min_index, min_distance, min_list = findMinDistance(bodyparts, nose_x, nose_y)
+              # min_distance in inches
+
               if (not min_index is None and min_distance < approach_distance):
                 engagement_frames += 1
                 if (engagement_frames >= approach_frames):
-                  # add the time stamp to the last column and append the row to the dataframe                  
+                  
                   # for debugging keep a list of interactions and the frames they happen
                   if (debug):
-                    adjusted_frame = frame + frames_to_skip - approach_frames
+                    ### print(f'Frame {frame + frames_to_skip} \t Engangement_frames {engagement_frames} > {approach_frames} \t {min_distance} < {approach_distance}')
+                    adjusted_frame = frame + frames_to_skip
                     saved_frames.append(adjusted_frame)
                     debugging_approaches.append([nose_x, nose_y])
                   
@@ -647,8 +651,7 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
             
         if (download_raw_approaches):
           approach_singular.append(approach_to_j)
-        # save csv
-        # approach_to_j.to_csv(path_or_buf = "C:/Users/micha/MonfilsLab/analysis/csv/rat{}_to_rat{}.csv".format(i, j))
+        
       elif (download_raw_approaches):
           approach_singular.append(['same animal'])
 
@@ -660,20 +663,20 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
   print ("finished task {}".format(i))
   return saved_frames, debugging_approaches, counts
   
-# from a list of x and y opints for body parts, return the min and its index
-def findMinDistance(bodyparts: list, nose_x: float, nose_y: float, pixel_to_inch: float):
+# from a list of x and y points for body parts, return the min, its distance (inches) and its index
+def findMinDistance(bodyparts: list, nose_x: float, nose_y: float):
     min_index = -1
     min_distance = 1_000
     min_list = [None] * (round(len(bodyparts) / 2))
-    # len(min_list) == 11
-    
+    # divide by 2 because we are going from a list with two columns for every body point (x and y) to just every body point
+
     i = 0
     while (i < len(bodyparts)):
         part_x = bodyparts[i]
         part_y = bodyparts[i + 1]
         
         if (not part_x is None):
-            distance = getDistance(nose_x, nose_y, part_x, part_y, pixel_to_inch)
+            distance = getDistance(nose_x, nose_y, part_x, part_y)
             if (distance < min_distance):
                 min_distance = distance
                 min_index = i
@@ -682,32 +685,35 @@ def findMinDistance(bodyparts: list, nose_x: float, nose_y: float, pixel_to_inch
     
     if (min_index == -1):
         return None, None, min_list
+    
     min_list[round(min_index/2)] = min_distance
     return min_index, min_distance, min_list
   
       
 # returns the distance between two points (inches)
-def getDistance(x1, y1, x2, y2, pixel_to_inch):
-    #convert pixel distance to real world
-    return convertPixelToInch(math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2)), pixel_to_inch)
+def getDistance(x1, y1, x2, y2):
+    return convertPixelToInch(math.sqrt(math.pow((x1 - x2), 2) + math.pow((y1 - y2), 2)))
 
 # converts a pixel length to inches
-def convertPixelToInch(x, pixel_to_inch: float):
+def convertPixelToInch(x):
   return x / pixel_to_inch
+
+# converts a inch to pixel
+def convertInchToPixel(x):
+  return x * pixel_to_inch
 
 # returns the average x and average y point of a list of points (x1, y1, x2, y2, x3, ...)    
 def getAverage(individual_pd, i):
   average_x = []
   average_y = []
-  print ("started task {}".format(i))
 
+  print ("started task {}".format(i))
   for frame in range (len(individual_pd[i])):
     sum_x = 0
     sum_y = 0
     count = 0
-    
+
     for j in range (len(individual_pd[i].columns) - 4): # minus four columns to remove tail points
-      
       if j % 2 == 0:    
         pos_x = individual_pd[i].iloc[frame,j]
 
@@ -737,7 +743,7 @@ def getAverage(individual_pd, i):
   
   return average_pd
 
-def time_convert(sec):
+def time_convert(sec) -> None:
   mins = sec // 60
   sec = sec % 60
   hours = mins // 60
