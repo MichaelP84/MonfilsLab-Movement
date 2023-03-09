@@ -209,7 +209,7 @@ def main():
       
       print (saved_frames)
 
-      approach_matrix = approach_matrix.reshape(6, 6)
+      approach_matrix = approach_matrix.reshape(num_individuals, num_individuals)
       if (debug):
         print(f'approach matrix: {approach_matrix}')
       matrix_df = pd.DataFrame(approach_matrix, columns=animals,)
