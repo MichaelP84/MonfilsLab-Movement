@@ -304,10 +304,15 @@ def main():
       all_clusters = []
       cluster_frames = []
       centriods = []
+      all_points = []
+
       num_frames = len(average_pd[0])
       counts = [0] * (num_individuals)
       memory = []
-      
+
+      max_elligble = 0
+      max_group = 0
+
       for frame in range (num_frames):
         Rat_Point_list = []
         
@@ -319,12 +324,14 @@ def main():
             rat = Rat_Point(avg_x1, avg_y1, str(i))
             Rat_Point_list.append(rat)
           i += 1
+
+        max_elligble = max(len(Rat_Point_list), max_elligble)
           
         # print("Number of rats: {}".format(len(Rat_Point_list)))   
 
         # for group size 3 - 15 inclusize,
         # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3:2, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
+        thresholds = {3:2, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
         if (len(Rat_Point_list) >= 3):
           clusters = []
           # start at the max size group to skip over checking subgroups of large clusters that are identified
@@ -334,7 +341,7 @@ def main():
             for comb in combinations: 
               if (not contain(clusters, comb)):
                 # if the combination is not already a subgroup of a cluster
-                is_cluster, center_point = isACluster(comb, thresholds[group_size], frame)
+                is_cluster, center_point, all_coords = isACluster(comb, thresholds[group_size], frame)
                 if (is_cluster):
                   center_point.append(frame + frames_to_skip)
                   # if we havent seen this combination within the past frames (is not in memory)
@@ -346,7 +353,7 @@ def main():
                       inMemory = True
                       
                   if (not inMemory):
-                    c = Combination(cluster_threshold, comb, center_point)
+                    c = Combination(cluster_threshold, comb, center_point, all_coords)
                     memory.append(c)
                             
                   clusters.append(comb)
@@ -360,6 +367,9 @@ def main():
               all_clusters.append(mem_comb.getList())
               cluster_frames.append(mem_comb.getFrames())              
               centriods.append(mem_comb.getCentriod())
+              all_points.append(mem_comb.getAllCoords())
+
+              # max_group = max(max_group, len(mem_comb.getList()))
               
               # list of total group sizes
               counts[len(mem_comb.getList()) - 1] += 1
@@ -373,8 +383,12 @@ def main():
             
           else:
             # combination in memory found again
-            mem_comb.addFrame(frame + frames_to_skip)
-      
+            mem_comb.addFrame(frame + frames_to_skip)   
+              
+      print(f'A max number of {max_elligble} rats were seen on screen at one time')
+      print(f'A max group of size {max_group} was found on screen at one time')
+
+
       if (debug):
         proportion_in_cluster = len(cluster_frames) / num_frames
         print("{} of all frames have a cluster".format(proportion_in_cluster))
@@ -401,29 +415,33 @@ def main():
       cluster_totals.to_csv(cluster_path)
       
       if (debug):
+
         # testing code: manually check frames at identified clusters
-        for (group, clusters, centers) in zip(cluster_frames, all_clusters, centriods):
-          print(video_path)
-          cap = cv2.VideoCapture(video_path)
+        for (group, clusters, centers, points) in zip(cluster_frames, all_clusters, centriods, all_points):
           x_pos, y_pos, length = centers[0], centers[1], centers[2]
-          print(x_pos, y_pos, length, centers[3])
+          print(x_pos, y_pos, length)
 
           for f in group:
             print(f)
+            cap = cv2.VideoCapture(video_path)
             cap.set(cv2.CAP_PROP_POS_FRAMES, f)
 
             if (not cap.isOpened()): 
               print("Error opening video stream or file")
             
-            ret, frame = cap.read()
+            ret, img = cap.read()
             if ret == True:
               radius = int(convertInchToPixel(length))
-              frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
+              img = cv2.circle(img, (int(x_pos), int(y_pos)), radius, color, 2)
+              for point in points:
+                print(int(point[0]), int(point[1])) # getting points at the exact same spot????
+                img = cv2.circle(img, (int(point[0]), int(point[1])), 20, color, 7)
+
               
               # Display the resulting frame
               printTime(f)
               print("Group size: {}".format(len(clusters)))
-              cv2.imshow('Frame', frame)
+              cv2.imshow('Frame', img)
               # press any button to go to next frame
               cv2.waitKey(0)
             
@@ -437,7 +455,8 @@ def main():
 
     
 class Combination:
-  def __init__(self, threshold: int, comb: list, centriod: tuple) -> None:
+  def __init__(self, threshold: int, comb: list, centriod: tuple, all_coords:list) -> None:
+    self.all_coords = all_coords
     self.centriod = centriod
     self.framesLeft = threshold
     self.bufferFrames = 4
@@ -474,6 +493,9 @@ class Combination:
   
   def getList(self) -> list:
     return self.comb
+  
+  def getAllCoords(self) -> list:
+    return self.all_coords
 
 # returns the binned velocity for rats over time
 def getVelocity(i: int, individual_pd: list, velocity_bin: int):  
@@ -570,25 +592,24 @@ def getCombinations(arr: list, choose: int):
   
 
 def isACluster(arr: list, threshold: int, frame: int) -> bool:
-  
   coords = []
-  count = 0
   sum_x = 0
   sum_y = 0
   for rat in arr:
-    count += 1
+
     x, y = rat.getCoordinates()
+    coords.append([x, y])
     sum_x += x
     sum_y += y
   
-  avg_x = sum_x / count
-  avg_y = sum_y / count
+  avg_x = sum_x / len(arr)
+  avg_y = sum_y / len(arr)
   
-  temp_x = avg_x
-  temp_y = avg_y
-  
+
+  # print(coords)
+
   # if (debug):
-  #   vid = 'C:\\Users\\micha\MonfilsLab\\analysis\\Videos\\SUNP0007DLC_resnet50_MovementLabDec16shuffle1_350000_full.mp4'
+  #   vid = 'C:\\Users\\mrp3844\\MonfilsLab\\Analysis\\MonfilsLab-Movement\\Videos\\SUNP0009-2.MOV'
   #   cap = cv2.VideoCapture(vid)
   #   cap.set(cv2.CAP_PROP_POS_FRAMES, frame + frames_to_skip)
 
@@ -600,7 +621,7 @@ def isACluster(arr: list, threshold: int, frame: int) -> bool:
   #       img = cv2.circle(img, (int(rat[0]), int(rat[1])), 50, color, 2)
   #     # Display the resulting frame
   #     cv2.imshow('Frame', img)
-  #     print('Frame: ' + frame)
+  #     print('Frame: ', frame)
       
   #     # press any button to go to next frame
   #     cv2.waitKey(0)
@@ -613,8 +634,8 @@ def isACluster(arr: list, threshold: int, frame: int) -> bool:
     dist = getDistance(rat_x, rat_y, avg_x, avg_y)
     if dist > threshold:
       # print("not a cluster, distance: {} > threshold {}".format(dist, threshold))
-      return False, None
-  return True, [temp_x, temp_y, threshold]
+      return False, None, None
+  return True, [avg_x, avg_y, threshold], coords
     
 
 # for a given rat i, tracks its approach behavior on alll other rats
