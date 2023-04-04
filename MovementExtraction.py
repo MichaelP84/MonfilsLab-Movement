@@ -308,7 +308,9 @@ def main():
       counts = [0] * (num_individuals)
       memory = []
       
+      # num_frams
       for frame in range (num_frames):
+        print(frame)
         Rat_Point_list = []
         
         # create a list of rat_point objects for each rat that is not null
@@ -322,12 +324,12 @@ def main():
           
         # print("Number of rats: {}".format(len(Rat_Point_list)))   
 
-        # for group size 3 - 15 inclusize,
+        # for group size 3 - 15 inclusive,
         # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3:2, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
+        thresholds = {3:2.5, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
         if (len(Rat_Point_list) >= 3):
           clusters = []
-          # start at the max size group to skip over checking subgroups of large clusters that are identified
+          # start at the max size group to skip over checking subgroups of found clusters
           for group_size in reversed(range(3, len(Rat_Point_list) + 1)):
             combinations = getCombinations(Rat_Point_list, group_size)
             
@@ -342,7 +344,7 @@ def main():
                   inMemory = False
                   for mem_comb in memory:
                     if (mem_comb.wraps(comb)):
-                      mem_comb.subtract()
+                      mem_comb.subtract_time()
                       inMemory = True
                       
                   if (not inMemory):
@@ -447,7 +449,7 @@ class Combination:
   def isWithin(self, newCombinations: list) -> bool:
     return any(group == self.comb for group in newCombinations)
   
-  def subtract(self) -> None:
+  def subtract_time(self) -> None:
     if (self.framesLeft > 0):
       self.framesLeft -= 1
   
@@ -518,11 +520,13 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
   return velocity_singular, total_distance
   
       
-# given a list of cluster and a new combination, return true if the combination
-# is already within a cluster
-# massive clusters take priority
+# given a list of cluster and a new combination, return true if item in the combination
+# is already within a cluster so that massive clusters take priority
 def contain(clusters: list, comb: list) -> bool:
+    print (clusters)
     for group in clusters:
+      print(group)
+      print(comb)
       if (any(item in group for item in comb) == True):
         return True
     return False
@@ -574,7 +578,6 @@ def isACluster(arr: list, threshold: int, frame: int) -> bool:
   coords = []
   count = 0
   sum_x = 0
-  sum_y = 0
   for rat in arr:
     count += 1
     x, y = rat.getCoordinates()
