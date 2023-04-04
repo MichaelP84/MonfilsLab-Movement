@@ -38,12 +38,10 @@ def main():
   velocity_bin = specifications.velocity_bin
   
   # points
-  # bodyDict = {0: 'nose', 2: 'right_ear', 4: 'left_ear', 6: 'back1', 8: 'back2', 10: 'back3', 12: 'back4', 14: 'tail_base', 16: 'tail_mid', 18: 'tail_end'}
     
   csv_path = specifications.csv_path
   video_type = specifications.video_type
   video_path = specifications.video_path
-
   
   if (debug):
     print("Running in verification mode...") 
@@ -147,8 +145,8 @@ def main():
         work.append(w)
 
       p = Pool(num_individuals)
-      results = p.starmap(getVelocity, work)  
-      
+      results = p.starmap(getVelocity, work) # multi-processing
+            
       velocity = pd.DataFrame()
       total_distance = pd.DataFrame()
 
@@ -176,12 +174,11 @@ def main():
     matrix_path = working_directory + '\\approach_matrix.csv'
     
     if not os.path.exists(matrix_path):
-      # if download_raw_approaches and not os.path.exists(approach_directory):
-      #   os.mkdir(approach_directory)
-      #   print("Directory '{}' created at '{}' ".format(directory, approach_directory))
+      if download_raw_approaches and not os.path.exists(approach_directory):
+        os.mkdir(approach_directory)
+        print("Directory '{}' created at '{}' ".format(directory, approach_directory))
 
       work = []
-      # num_individuals
       for i in range(num_individuals):
         
         rat_path = None
@@ -223,9 +220,17 @@ def main():
         print((debugging_approaches[0][0]))
       
       if (debug):
+        saved_path = working_directory + '\\debug_approach_frames'
+        if (not os.path.exists(saved_path)):
+          os.mkdir(saved_path)
+
+        count = 0
         cap = cv2.VideoCapture(video_path)
         for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
-          for (f, approach) in zip (group_of_frames, group_of_approach):
+          for (f, approach) in zip(group_of_frames, group_of_approach):
+            
+            count += 1
+            file_name = saved_path + (f'\{count}.jpg')
             f = int(f)
             cap.set(cv2.CAP_PROP_POS_FRAMES, f)            
             
@@ -238,21 +243,16 @@ def main():
             frame = cv2.circle(frame, center_coordinates, radius, color, 2)
 
             if ret == True:
-              # Display the resulting frame
-              print("Frame: {}, Nose: {}".format(f, approach))
-              cv2.imshow('Frame', frame)
-              
-              # press any button to go to next frame
-              cv2.waitKey(0)
+              # save the resulting frame
+              # print("Frame: {}, Nose: {}".format(f, approach))
+              if (count % 100 == 0):
+                print(f'writing frame {count}')
+                cv2.imwrite(file_name, frame)
               
         cap.release()
         
-        # Closes all the frames
-        cv2.destroyAllWindows()
-    
     else:
       print("Skipping Approach Behavior calculations because directory 'Approach_Behavior' already exists")
-    
     
     
     #6. creating an average position point, not including tail data
@@ -308,9 +308,9 @@ def main():
       counts = [0] * (num_individuals)
       memory = []
       
-      # num_frams
       for frame in range (num_frames):
-        print(frame)
+        if ((frame + 1) % 1000 == 0):
+          print(f'{frame}/{num_frames}')
         Rat_Point_list = []
         
         # create a list of rat_point objects for each rat that is not null
@@ -322,8 +322,6 @@ def main():
             Rat_Point_list.append(rat)
           i += 1
           
-        # print("Number of rats: {}".format(len(Rat_Point_list)))   
-
         # for group size 3 - 15 inclusive,
         # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
         thresholds = {3:2.5, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
@@ -334,7 +332,7 @@ def main():
             combinations = getCombinations(Rat_Point_list, group_size)
             
             for comb in combinations: 
-              if (not contain(clusters, comb)):
+              if (len(clusters) == 0 or not contain(clusters, comb)):
                 # if the combination is not already a subgroup of a cluster
                 is_cluster, center_point = isACluster(comb, thresholds[group_size], frame)
                 if (is_cluster):
@@ -403,14 +401,21 @@ def main():
       cluster_totals.to_csv(cluster_path)
       
       if (debug):
-        # testing code: manually check frames at identified clusters
+        saved_path = working_directory + '\\debug_cluster_frames'
+        if (not os.path.exists(saved_path)):
+          os.mkdir(saved_path)
+          
+        # testing code: download frames of identified clusters
+        count = 0
         for (group, clusters, centers) in zip(cluster_frames, all_clusters, centriods):
-          print(video_path)
+          count += 1
+          # print(video_path)
           cap = cv2.VideoCapture(video_path)
           x_pos, y_pos, length = centers[0], centers[1], centers[2]
-          print(x_pos, y_pos, length, centers[3])
+          
+          file_name = saved_path + (f'\{count}.jpg')
 
-          for f in group:
+          for i, f in enumerate(group):
             print(f)
             cap.set(cv2.CAP_PROP_POS_FRAMES, f)
 
@@ -422,18 +427,16 @@ def main():
               radius = int(convertInchToPixel(length))
               frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
               
-              # Display the resulting frame
               printTime(f)
               print("Group size: {}".format(len(clusters)))
-              cv2.imshow('Frame', frame)
-              # press any button to go to next frame
-              cv2.waitKey(0)
+              
+              if (i == 0):
+                # save image
+                cv2.imwrite(file_name, frame)
+                print(f'writing img {i}')
             
             cap.release()
         
-        # Closes all the frames
-        cv2.destroyAllWindows()
-    
     else:
       print("Skipping Cluster calculations because directory Raw_Clusters exists")
 
@@ -482,7 +485,7 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
   
   max_inputs = (len(individual_pd[i]) // velocity_bin)
 
-  velocity_singular = [] #velocity list for a single animal
+  velocity_singular = [] # velocity list for a single animal
   total_distance = 0
   
   frame = 0
@@ -500,13 +503,13 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
           next_x, next_y = individual_pd[i].iloc[frame, :2]
           
           frames_added = 0
-          while (math.isnan(next_x) and frame < len(individual_pd[0])): # continue adding frames until next non-nan frame
+          while (math.isnan(next_x) and frame < len(individual_pd[0])): # add frames until next non-nan frame
               frame += 1
               frames_added += 1
               if (frame < len(individual_pd[0])):
                 next_x, next_y = individual_pd[i].iloc[frame, :2]
           
-          #calculate the distance traveled in the bin for total distance and velocity
+          #calculate the distance traveled in the bin for total distance and velocity (inches)
           dist = getDistance(prev_x, prev_y, next_x, next_y)
           total_distance += dist
           
@@ -520,15 +523,14 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
   return velocity_singular, total_distance
   
       
-# given a list of cluster and a new combination, return true if item in the combination
-# is already within a cluster so that massive clusters take priority
+# given a list of cluster and a new combination, return true if any item in the combination
+# is already within a cluster
 def contain(clusters: list, comb: list) -> bool:
-    print (clusters)
+  
     for group in clusters:
-      print(group)
-      print(comb)
       if (any(item in group for item in comb) == True):
         return True
+    
     return False
 
 # represents a rat's average point
@@ -564,7 +566,7 @@ class Rat_Point:
     other_x, other_y = Rat_Point.getCoordinates()
     return getDistance(self.x, self.y, other_x, other_y)
   
-
+# returns every combination of rats in 'arr' of 'choose' size
 def getCombinations(arr: list, choose: int):
   combinations = []
   for comb in itertools.combinations(arr, choose):
@@ -572,12 +574,13 @@ def getCombinations(arr: list, choose: int):
   
   return combinations
   
-
+# determine if the rats in arr form a cluster
+# threshold is in inches
 def isACluster(arr: list, threshold: int, frame: int) -> bool:
   
-  coords = []
   count = 0
   sum_x = 0
+  sum_y = 0
   for rat in arr:
     count += 1
     x, y = rat.getCoordinates()
@@ -589,38 +592,18 @@ def isACluster(arr: list, threshold: int, frame: int) -> bool:
   
   temp_x = avg_x
   temp_y = avg_y
-  
-  # if (debug):
-  #   vid = 'C:\\Users\\micha\MonfilsLab\\analysis\\Videos\\SUNP0007DLC_resnet50_MovementLabDec16shuffle1_350000_full.mp4'
-  #   cap = cv2.VideoCapture(vid)
-  #   cap.set(cv2.CAP_PROP_POS_FRAMES, frame + frames_to_skip)
-
-  #   ret, img = cap.read()
-        
-  #   if ret == True:
-
-  #     for rat in coords:
-  #       img = cv2.circle(img, (int(rat[0]), int(rat[1])), 50, color, 2)
-  #     # Display the resulting frame
-  #     cv2.imshow('Frame', img)
-  #     print('Frame: ' + frame)
-      
-  #     # press any button to go to next frame
-  #     cv2.waitKey(0)
-          
-  #   cap.release()
-  
-  
+   
   for rat in arr:
     rat_x, rat_y = rat.getCoordinates()
     dist = getDistance(rat_x, rat_y, avg_x, avg_y)
     if dist > threshold:
-      # print("not a cluster, distance: {} > threshold {}".format(dist, threshold))
+      # not a cluster
       return False, None
+    
   return True, [temp_x, temp_y, threshold]
     
 
-# for a given rat i, tracks its approach behavior on alll other rats
+# for a given rat i, tracks its approach behavior onto all other rats
 def trackRatX(approach_distance: float, approach_time: float, null_frame_tolerance: int, i: int, individual_pd: list, rat_path: str):
   # print('I am number %d in process %d' % (i, os.getpid()))
   print ("started task {}".format(i))
@@ -628,7 +611,7 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
   # how many frames the rat should be < 'approach_distance' from another to count as an approach behaviours
   approach_frames = round(approach_time * frames_per_sec)  
   
-  # each element in approach_singular is a DataFrame of interactions with the other rats
+  # each element in approach_singular is a dataframe of interactions with the other rats
   approach_singular = []
   
   counts = np.zeros(len(individual_pd), dtype=np.intc)  
@@ -656,18 +639,18 @@ def trackRatX(approach_distance: float, approach_time: float, null_frame_toleran
 
             if (frame < len(individual_pd[i])):
               
-              bodyparts = individual_pd[j].iloc[frame, :-4] #exclude last four columns because they refer to points on the rat's tail
+              bodyparts = individual_pd[j].iloc[frame, :-4] # exclude last four columns because they refer to points on the rat's tail
               
               min_index, min_distance, min_list = findMinDistance(bodyparts, nose_x, nose_y)
               # min_distance in inches
 
-              if (not min_index is None and min_distance < approach_distance):
+              if (not min_index is None and min_distance < approach_distance): # approach distance is in inches
                 engagement_frames += 1
                 if (engagement_frames >= approach_frames):
                   
                   # for debugging keep a list of interactions and the frames they happen
                   if (debug):
-                    ### print(f'Frame {frame + frames_to_skip} \t Engangement_frames {engagement_frames} > {approach_frames} \t {min_distance} < {approach_distance}')
+                    # print(f'Frame {frame + frames_to_skip} \t Engangement_frames {engagement_frames} > {approach_frames} \t {min_distance} < {approach_distance}')
                     adjusted_frame = frame + frames_to_skip
                     saved_frames.append(adjusted_frame)
                     debugging_approaches.append([nose_x, nose_y])
