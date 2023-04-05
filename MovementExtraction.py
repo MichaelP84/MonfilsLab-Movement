@@ -314,6 +314,9 @@ def main():
       max_group = 0
 
       for frame in range (num_frames):
+        if ((frame + 1) % 20 == 0):
+          print(f'{frame + 1}/{num_frames}')
+        # print(frame)
         Rat_Point_list = []
         
         # create a list of rat_point objects for each rat that is not null
@@ -325,13 +328,11 @@ def main():
             Rat_Point_list.append(rat)
           i += 1
 
-        max_elligble = max(len(Rat_Point_list), max_elligble)
-          
-        # print("Number of rats: {}".format(len(Rat_Point_list)))   
+        max_elligble = max(len(Rat_Point_list), max_elligble)  
 
         # for group size 3 - 15 inclusize,
         # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3:2, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
+        thresholds = {3:2.5, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
         if (len(Rat_Point_list) >= 3):
           clusters = []
           # start at the max size group to skip over checking subgroups of large clusters that are identified
@@ -435,8 +436,7 @@ def main():
               img = cv2.circle(img, (int(x_pos), int(y_pos)), radius, color, 2)
               for point in points:
                 print(int(point[0]), int(point[1])) # getting points at the exact same spot????
-                img = cv2.circle(img, (int(point[0]), int(point[1])), 20, color, 7)
-
+                img = cv2.circle(img, (int(point[0]), int(point[1])), 10, color, 4)
               
               # Display the resulting frame
               printTime(f)
