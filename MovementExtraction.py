@@ -324,7 +324,7 @@ def main():
           
         # for group size 3 - 15 inclusive,
         # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3:2.5, 4:4, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 11:9.5, 12:9.75, 13:10, 14:10, 15:10}
+        thresholds = {3:4, 4:4.5, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:10, 12:10.5, 13:11, 14:11.5, 15:12}
         if (len(Rat_Point_list) >= 3):
           clusters = []
           # start at the max size group to skip over checking subgroups of found clusters
@@ -406,35 +406,35 @@ def main():
           os.mkdir(saved_path)
           
         # testing code: download frames of identified clusters
+        # print(video_path)
+
         count = 0
         for (group, clusters, centers) in zip(cluster_frames, all_clusters, centriods):
           count += 1
-          # print(video_path)
-          cap = cv2.VideoCapture(video_path)
           x_pos, y_pos, length = centers[0], centers[1], centers[2]
           
-          file_name = saved_path + (f'\{count}.jpg')
+          file_name = saved_path + (f'\size_{len(clusters)}_{count}.jpg')
 
-          for i, f in enumerate(group):
-            print(f)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+          # for i, f in enumerate(group):
+          cap = cv2.VideoCapture(video_path)
 
-            if (not cap.isOpened()): 
-              print("Error opening video stream or file")
+          cap.set(cv2.CAP_PROP_POS_FRAMES, group[1])
+
+          if (not cap.isOpened()): 
+            print("Error opening video stream or file")
+          
+          ret, frame = cap.read()
+          if ret == True:
+            radius = int(convertInchToPixel(length))
+            frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
             
-            ret, frame = cap.read()
-            if ret == True:
-              radius = int(convertInchToPixel(length))
-              frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
-              
-              printTime(f)
-              print("Group size: {}".format(len(clusters)))
-              
-              if (i == 0):
-                # save image
-                cv2.imwrite(file_name, frame)
-                print(f'writing img {i}')
+            # printTime(f)
+            # print("Group size: {}".format(len(clusters)))
             
+            
+            cv2.imwrite(file_name, frame)
+            print(f'writing img')
+          
             cap.release()
         
     else:

@@ -1,10 +1,10 @@
 # This file houses all the specifications related to analysis for the program
 # make sure this file is in the same folder as MovementExtraction.py
 
-csv_path = 'C:\\Users\\micha\\MonfilsLab\\analysis\\csv' # has to be double backslahes
-video_path = 'C:\\Users\\micha\\MonfilsLab\\analysis\\Videos' # has to be double backslahes
+csv_path = 'C:\\Users\\mrp3844\\MonfilsLab\\Analysis\\MonfilsLab-Movement\\csv' # has to be double backslahes
+video_path = 'C:\\Users\\mrp3844\\MonfilsLab\\Analysis\\MonfilsLab-Movement\\Videos' # has to be double backslahes
 video_type = '.mp4' # '.avi' '.mp4' ... etc.
-debug = True # (True/False)
+debug = False # (True/False)
 
 pixel_to_inch = 22.75 # pixel to inch conversion
 frames_per_sec = 60 # fps of input video
