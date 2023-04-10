@@ -1,14 +1,9 @@
 import pandas as pd
 import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.pyplot import figure
 import math
-import shutil
 import cv2
-# from matplotlib import pyplot as plt
-from multiprocessing import Pool, Process
+from multiprocessing import Pool
 import itertools
-# import time
 import os
 import specifications
 
