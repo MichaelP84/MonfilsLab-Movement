@@ -31,6 +31,7 @@ def main():
   
   # velocity and distance
   velocity_bin = specifications.velocity_bin
+  avg_point_only = specifications.avg_point_only
   
   # points
     
@@ -73,8 +74,10 @@ def main():
     print("\n\n\n----------File {}/{}-----------".format(i + 1, len(csv_list)))
 
     # create a file for every csv
-    filename = file_names[i][: -4]
-    working_directory = os.path.join(main_path, filename)
+    file_name = file_names[i]
+    head, _, _ = file_name.partition('_resnet50')
+
+    working_directory = os.path.join(main_path, head)
     if (debug):
       video_path = video_list[i]
     
@@ -126,138 +129,13 @@ def main():
       animals.append('rat_{}'.format(i))
 
 
-    #4. calculating velocity and distance in bins
-    # assuming the nose is the basis of the movement
-    # curently skips over nan values
-    velocity_path = os.path.join(working_directory, 'velocity.csv')
-    distance_path = os.path.join(working_directory, 'total_distance.csv')
-    if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
-      print("Calculating velocity...")
-      work = []
-      
-      for i in range (len(individual_pd)):
-        w = (i, individual_pd, velocity_bin)
-        work.append(w)
-
-      p = Pool(num_individuals)
-      results = p.starmap(getVelocity, work) # multi-processing
-            
-      velocity = pd.DataFrame()
-      total_distance = pd.DataFrame()
-
-      for i in range(len(results)):
-        total_distance['rat_{}'.format(i)] = [results[i][1]]
-        velocity['rat_{}'.format(i)] = results[i][0]
-      
-      velocity.to_csv(velocity_path)
-      total_distance.to_csv(distance_path)
-
-      print("\t ...done")
-    
-      if (debug):
-        print(total_distance.head())
-        print(velocity.head())
-        
-    else:
-      print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
-
-
-    #5. Calculating Approach behaviour
-    print("Calculating approach behavior...")
-    directory = "Approach_Behavior"
-    approach_directory = os.path.join(working_directory, directory)
-    matrix_path = working_directory + '\\approach_matrix.csv'
-    
-    if not os.path.exists(matrix_path):
-      if download_raw_approaches and not os.path.exists(approach_directory):
-        os.mkdir(approach_directory)
-        print("Directory '{}' created at '{}' ".format(directory, approach_directory))
-
-      work = []
-      for i in range(num_individuals):
-        
-        rat_path = None
-        if (download_raw_approaches):
-          rat_path = approach_directory
-          directory = "rat_{}".format(i)
-          rat_path = os.path.join(rat_path, directory)
-          
-          if not os.path.exists(rat_path):
-            os.mkdir(rat_path)
-
-        x = (approach_distance, approach_time, null_frame_tolerance, i, individual_pd, rat_path)
-        work.append(x)
-      
-      p = Pool(num_individuals)
-      saved = p.starmap(trackRatX, work)
-      
-      # debugging verify frames
-      saved_frames = []
-      debugging_approaches = []
-      approach_matrix = np.array([], dtype=np.intc)
-      for x in saved:
-        saved_frames.append(x[0])
-        debugging_approaches.append(x[1])
-        approach_matrix = np.append([approach_matrix], x[2])
-      
-      print (saved_frames)
-
-      approach_matrix = approach_matrix.reshape(num_individuals, num_individuals)
-      if (debug):
-        print(f'approach matrix: {approach_matrix}')
-      matrix_df = pd.DataFrame(approach_matrix, columns=animals,)
-      matrix_df = matrix_df.set_axis(animals, axis ='index')
-      matrix_df.to_csv(matrix_path)
-               
-      print("\t ...done")
-      if (debug):
-        print((saved_frames[0][0]))
-        print((debugging_approaches[0][0]))
-      
-      if (debug):
-        saved_path = working_directory + '\\debug_approach_frames'
-        if (not os.path.exists(saved_path)):
-          os.mkdir(saved_path)
-
-        count = 0
-        cap = cv2.VideoCapture(video_path)
-        for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
-          for (f, approach) in zip(group_of_frames, group_of_approach):
-            
-            count += 1
-            file_name = saved_path + (f'\{count}.jpg')
-            f = int(f)
-            cap.set(cv2.CAP_PROP_POS_FRAMES, f)            
-            
-            if (cap.isOpened() == False): 
-              print("Error opening video stream or file")
-            ret, frame = cap.read()
-
-            center_coordinates = (int(approach[0]), int(approach[1]))
-            radius = int(convertInchToPixel(approach_distance))
-            frame = cv2.circle(frame, center_coordinates, radius, color, 2)
-
-            if ret == True:
-              # save the resulting frame
-              # print("Frame: {}, Nose: {}".format(f, approach))
-              if (count % 100 == 0):
-                print(f'writing frame {count}')
-                cv2.imwrite(file_name, frame)
-              
-        cap.release()
-        
-    else:
-      print("Skipping Approach Behavior calculations because directory 'Approach_Behavior' already exists")
-    
-    
-    #6. creating an average position point, not including tail data
+    #4. creating an average position point, not including tail data
     # each animal's calcualtions is done simultanesouly on a different thread
     directory = "Average_Position"  
     path = os.path.join(working_directory, directory)
         
     # if the avg position calculations have not been run already, run them
     if not os.path.exists(path):
-      #shutil.rmtree(path) deletes a folder
       os.mkdir(path)
       print("Directory '{}' created at '{}' ".format(directory, path))
       work = []
@@ -284,156 +162,282 @@ def main():
         data = pd.read_csv(f)
         data = data.drop(data.columns[0], axis=1)
         average_pd.append(data)
+
+    if (not avg_point_only):
+      # calculate all statistics
+
+      #5. calculating velocity and distance in bins
+      # assuming the nose is the basis of the movement
+      # curently skips over nan values
+      velocity_path = os.path.join(working_directory, 'velocity.csv')
+      distance_path = os.path.join(working_directory, 'total_distance.csv')
+      if not os.path.exists(velocity_path) or not os.path.exists(distance_path):
+        print("Calculating velocity...")
+        work = []
         
-        
-    #7. find clusters
-    directory = "raw_cluster.csv"
-    raw_path = os.path.join(working_directory, directory)
-    
-    directory = "cluster_totals.csv"
-    cluster_path = os.path.join(working_directory, directory)
-    
-    if not os.path.exists(cluster_path) or not os.path.exists(raw_path):
-          
-      print("Clustering: ")
-      all_clusters = []
-      cluster_frames = []
-      centriods = []
-      num_frames = len(average_pd[0])
-      counts = [0] * (num_individuals)
-      memory = []
-      
-      for frame in range (num_frames):
-        if ((frame + 1) % 1000 == 0):
-          print(f'{frame}/{num_frames}')
-        Rat_Point_list = []
-        
-        # create a list of rat_point objects for each rat that is not null
-        i = 0
-        while i < len(individual_pd):
-          avg_x1, avg_y1 = average_pd[i].iloc[frame, : ]
-          if (not math.isnan(avg_x1)):
-            rat = Rat_Point(avg_x1, avg_y1, str(i))
-            Rat_Point_list.append(rat)
-          i += 1
-          
-        # for group size 3 - 15 inclusive,
-        # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-        thresholds = {3:4, 4:4.5, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:10, 12:10.5, 13:11, 14:11.5, 15:12}
-        if (len(Rat_Point_list) >= 3):
-          clusters = []
-          # start at the max size group to skip over checking subgroups of found clusters
-          for group_size in reversed(range(3, len(Rat_Point_list) + 1)):
-            combinations = getCombinations(Rat_Point_list, group_size)
-            
-            for comb in combinations: 
-              if (len(clusters) == 0 or not contain(clusters, comb)):
-                # if the combination is not already a subgroup of a cluster
-                is_cluster, center_point = isACluster(comb, thresholds[group_size], frame)
-                if (is_cluster):
-                  center_point.append(frame + frames_to_skip)
-                  # if we havent seen this combination within the past frames (is not in memory)
-                  # add it to memory
-                  inMemory = False
-                  for mem_comb in memory:
-                    if (mem_comb.wraps(comb)):
-                      mem_comb.subtract_time()
-                      inMemory = True
-                      
-                  if (not inMemory):
-                    c = Combination(cluster_threshold, comb, center_point)
-                    memory.append(c)
-                            
-                  clusters.append(comb)
-                              
-        # after looking at all cominations in this frame
-        # see if a combination in memory dropped out
-        for mem_comb in memory:
-          if not mem_comb.isWithin(clusters) and not mem_comb.hasBuffer():
-            if (mem_comb.isCleared()):
-              # combination existance time satisfied, add it to found clusters
-              all_clusters.append(mem_comb.getList())
-              cluster_frames.append(mem_comb.getFrames())              
-              centriods.append(mem_comb.getCentriod())
+        for i in range (len(individual_pd)):
+          w = (i, individual_pd, velocity_bin)
+          work.append(w)
+
+        p = Pool(num_individuals)
+        results = p.starmap(getVelocity, work) # multi-processing
               
-              # list of total group sizes
-              counts[len(mem_comb.getList()) - 1] += 1
-            memory.remove(mem_comb)
-            
-          elif not mem_comb.isWithin(clusters) and mem_comb.hasBuffer():
-            # combinaiton in memory is not found in this frame:
-            # 4 buffer frames allow a cluster to have some missing point data 
-            mem_comb.buffer()
-            mem_comb.addFrame(frame + frames_to_skip)
-            
-          else:
-            # combination in memory found again
-            mem_comb.addFrame(frame + frames_to_skip)
-      
-      if (debug):
-        proportion_in_cluster = len(cluster_frames) / num_frames
-        print("{} of all frames have a cluster".format(proportion_in_cluster))
-        print('length of all clusters: ', len(all_clusters))
-        print('lengths of all cluster_frames: ', len(cluster_frames))
-      
-      # create csv of all clusters
-      cluster_csv = pd.DataFrame()
-      cluster_csv['clusters'] = all_clusters
-      initial_time = []
-      durations = []
-      for group in cluster_frames:
-        initial_time.append(getTime(group[0])) # as min, sec
-        durations.append(len(group)/60) # as seconds
+        velocity = pd.DataFrame()
+        total_distance = pd.DataFrame()
+
+        for i in range(len(results)):
+          total_distance['rat_{}'.format(i)] = [results[i][1]]
+          velocity['rat_{}'.format(i)] = results[i][0]
         
-      cluster_csv['time_stamp'] = initial_time
-      cluster_csv['duration_seconds'] = durations
-      cluster_csv.to_csv(raw_path)
-      
-      # create a csv of just counts of cluster amounts                   
-      cluster_totals = pd.DataFrame()
-      for i in range(num_individuals):
-        cluster_totals[f'size_{i + 1}'] = [counts[i]]
-      cluster_totals.to_csv(cluster_path)
-      
-      if (debug):
-        saved_path = working_directory + '\\debug_cluster_frames'
-        if (not os.path.exists(saved_path)):
-          os.mkdir(saved_path)
-          
-        # testing code: download frames of identified clusters
-        # print(video_path)
+        velocity.to_csv(velocity_path)
+        total_distance.to_csv(distance_path)
 
-        count = 0
-        for (group, clusters, centers) in zip(cluster_frames, all_clusters, centriods):
-          count += 1
-          x_pos, y_pos, length = centers[0], centers[1], centers[2]
+        print("\t ...done")
+      
+        if (debug):
+          print(total_distance.head())
+          print(velocity.head())
           
-          file_name = saved_path + (f'\size_{len(clusters)}_{count}.jpg')
+      else:
+        print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
 
-          # for i, f in enumerate(group):
+
+      #6. Calculating Approach behaviour
+      print("Calculating approach behavior...")
+      directory = "Approach_Behavior"
+      approach_directory = os.path.join(working_directory, directory)
+      matrix_path = working_directory + '\\approach_matrix.csv'
+      
+      if not os.path.exists(matrix_path):
+        if download_raw_approaches and not os.path.exists(approach_directory):
+          os.mkdir(approach_directory)
+          print("Directory '{}' created at '{}' ".format(directory, approach_directory))
+
+        work = []
+        for i in range(num_individuals):
+          
+          rat_path = None
+          if (download_raw_approaches):
+            rat_path = approach_directory
+            directory = "rat_{}".format(i)
+            rat_path = os.path.join(rat_path, directory)
+            
+            if not os.path.exists(rat_path):
+              os.mkdir(rat_path)
+
+          x = (approach_distance, approach_time, null_frame_tolerance, i, individual_pd, rat_path)
+          work.append(x)
+        
+        p = Pool(num_individuals)
+        saved = p.starmap(trackRatX, work)
+        
+        # debugging verify frames
+        saved_frames = []
+        debugging_approaches = []
+        approach_matrix = np.array([], dtype=np.intc)
+        for x in saved:
+          saved_frames.append(x[0])
+          debugging_approaches.append(x[1])
+          approach_matrix = np.append([approach_matrix], x[2])
+        
+        print (saved_frames)
+
+        approach_matrix = approach_matrix.reshape(num_individuals, num_individuals)
+        if (debug):
+          print(f'approach matrix: {approach_matrix}')
+        matrix_df = pd.DataFrame(approach_matrix, columns=animals,)
+        matrix_df = matrix_df.set_axis(animals, axis ='index')
+        matrix_df.to_csv(matrix_path)
+                
+        print("\t ...done")
+        if (debug):
+          print((saved_frames[0][0]))
+          print((debugging_approaches[0][0]))
+        
+        if (debug):
+          saved_path = working_directory + '\\debug_approach_frames'
+          if (not os.path.exists(saved_path)):
+            os.mkdir(saved_path)
+
+          count = 0
           cap = cv2.VideoCapture(video_path)
+          for (group_of_frames, group_of_approach) in zip(saved_frames, debugging_approaches):
+            for (f, approach) in zip(group_of_frames, group_of_approach):
+              
+              count += 1
+              file_name = saved_path + (f'\{count}.jpg')
+              f = int(f)
+              cap.set(cv2.CAP_PROP_POS_FRAMES, f)            
+              
+              if (cap.isOpened() == False): 
+                print("Error opening video stream or file")
+              ret, frame = cap.read()
 
-          cap.set(cv2.CAP_PROP_POS_FRAMES, group[1])
+              center_coordinates = (int(approach[0]), int(approach[1]))
+              radius = int(convertInchToPixel(approach_distance))
+              frame = cv2.circle(frame, center_coordinates, radius, color, 2)
 
-          if (not cap.isOpened()): 
-            print("Error opening video stream or file")
+              if ret == True:
+                # save the resulting frame
+                # print("Frame: {}, Nose: {}".format(f, approach))
+                if (count % 100 == 0):
+                  print(f'writing frame {count}')
+                  cv2.imwrite(file_name, frame)
+                
+          cap.release()
           
-          ret, frame = cap.read()
-          if ret == True:
-            radius = int(convertInchToPixel(length))
-            frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
-            
-            # printTime(f)
-            # print("Group size: {}".format(len(clusters)))
-            
-            
-            cv2.imwrite(file_name, frame)
-            print(f'writing img')
+      else:
+        print("Skipping Approach Behavior calculations because directory 'Approach_Behavior' already exists")
           
-            cap.release()
+          
+      #7. find clusters
+      directory = "raw_cluster.csv"
+      raw_path = os.path.join(working_directory, directory)
+      
+      directory = "cluster_totals.csv"
+      cluster_path = os.path.join(working_directory, directory)
+      
+      if not os.path.exists(cluster_path) or not os.path.exists(raw_path):
+            
+        print("Clustering: ")
+        all_clusters = []
+        cluster_frames = []
+        centriods = []
+        num_frames = len(average_pd[0])
+        counts = [0] * (num_individuals)
+        memory = []
         
-    else:
-      print("Skipping Cluster calculations because directory Raw_Clusters exists")
+        for frame in range (num_frames):
+          if ((frame + 1) % 1000 == 0):
+            print(f'{frame}/{num_frames}')
+          Rat_Point_list = []
+          
+          # create a list of rat_point objects for each rat that is not null
+          i = 0
+          while i < len(individual_pd):
+            avg_x1, avg_y1 = average_pd[i].iloc[frame, : ]
+            if (not math.isnan(avg_x1)):
+              rat = Rat_Point(avg_x1, avg_y1, str(i))
+              Rat_Point_list.append(rat)
+            i += 1
+            
+          # for group size 3 - 15 inclusive,
+          # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
+          thresholds = {3:4, 4:4.5, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:10, 12:10.5, 13:11, 14:11.5, 15:12}
+          if (len(Rat_Point_list) >= 3):
+            clusters = []
+            # start at the max size group to skip over checking subgroups of found clusters
+            for group_size in reversed(range(3, len(Rat_Point_list) + 1)):
+              combinations = getCombinations(Rat_Point_list, group_size)
+              
+              for comb in combinations: 
+                if (len(clusters) == 0 or not contain(clusters, comb)):
+                  # if the combination is not already a subgroup of a cluster
+                  is_cluster, center_point = isACluster(comb, thresholds[group_size], frame)
+                  if (is_cluster):
+                    center_point.append(frame + frames_to_skip)
+                    # if we havent seen this combination within the past frames (is not in memory)
+                    # add it to memory
+                    inMemory = False
+                    for mem_comb in memory:
+                      if (mem_comb.wraps(comb)):
+                        mem_comb.subtract_time()
+                        inMemory = True
+                        
+                    if (not inMemory):
+                      c = Combination(cluster_threshold, comb, center_point)
+                      memory.append(c)
+                              
+                    clusters.append(comb)
+                                
+          # after looking at all cominations in this frame
+          # see if a combination in memory dropped out
+          for mem_comb in memory:
+            if not mem_comb.isWithin(clusters) and not mem_comb.hasBuffer():
+              if (mem_comb.isCleared()):
+                # combination existance time satisfied, add it to found clusters
+                all_clusters.append(mem_comb.getList())
+                cluster_frames.append(mem_comb.getFrames())              
+                centriods.append(mem_comb.getCentriod())
+                
+                # list of total group sizes
+                counts[len(mem_comb.getList()) - 1] += 1
+              memory.remove(mem_comb)
+              
+            elif not mem_comb.isWithin(clusters) and mem_comb.hasBuffer():
+              # combinaiton in memory is not found in this frame:
+              # 4 buffer frames allow a cluster to have some missing point data 
+              mem_comb.buffer()
+              mem_comb.addFrame(frame + frames_to_skip)
+              
+            else:
+              # combination in memory found again
+              mem_comb.addFrame(frame + frames_to_skip)
+        
+        if (debug):
+          proportion_in_cluster = len(cluster_frames) / num_frames
+          print("{} of all frames have a cluster".format(proportion_in_cluster))
+          print('length of all clusters: ', len(all_clusters))
+          print('lengths of all cluster_frames: ', len(cluster_frames))
+        
+        # create csv of all clusters
+        cluster_csv = pd.DataFrame()
+        cluster_csv['clusters'] = all_clusters
+        initial_time = []
+        durations = []
+        for group in cluster_frames:
+          initial_time.append(getTime(group[0])) # as min, sec
+          durations.append(len(group)/60) # as seconds
+          
+        cluster_csv['time_stamp'] = initial_time
+        cluster_csv['duration_seconds'] = durations
+        cluster_csv.to_csv(raw_path)
+        
+        # create a csv of just counts of cluster amounts                   
+        cluster_totals = pd.DataFrame()
+        for i in range(num_individuals):
+          cluster_totals[f'size_{i + 1}'] = [counts[i]]
+        cluster_totals.to_csv(cluster_path)
+        
+        if (debug):
+          saved_path = working_directory + '\\debug_cluster_frames'
+          if (not os.path.exists(saved_path)):
+            os.mkdir(saved_path)
+            
+          # testing code: download frames of identified clusters
+          # print(video_path)
+
+          count = 0
+          for (group, clusters, centers) in zip(cluster_frames, all_clusters, centriods):
+            count += 1
+            x_pos, y_pos, length = centers[0], centers[1], centers[2]
+            
+            file_name = saved_path + (f'\size_{len(clusters)}_{count}.jpg')
+
+            # for i, f in enumerate(group):
+            cap = cv2.VideoCapture(video_path)
+
+            cap.set(cv2.CAP_PROP_POS_FRAMES, group[1])
+
+            if (not cap.isOpened()): 
+              print("Error opening video stream or file")
+            
+            ret, frame = cap.read()
+            if ret == True:
+              radius = int(convertInchToPixel(length))
+              frame = cv2.circle(frame, (int(x_pos), int(y_pos)), radius, color, 2)
+              
+              # printTime(f)
+              # print("Group size: {}".format(len(clusters)))
+              
+              
+              cv2.imwrite(file_name, frame)
+              print(f'writing img')
+            
+              cap.release()
+          
+      else:
+        print("Skipping Cluster calculations because directory Raw_Clusters exists")
 
     
 class Combination:
@@ -572,7 +576,6 @@ def getCombinations(arr: list, choose: int):
 # determine if the rats in arr form a cluster
 # threshold is in inches
 def isACluster(arr: list, threshold: int, frame: int) -> bool:
-  
   count = 0
   sum_x = 0
   sum_y = 0
