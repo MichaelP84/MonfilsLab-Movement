@@ -15,9 +15,11 @@ pixel_to_inch = specifications.pixel_to_inch
 debug = specifications.debug
 titles = specifications.titles
 download_raw_approaches = specifications.download_raw_approaches
+thresholds = specifications.thresholds
 
 # Blue color in BGR
 color = (255, 0, 0)
+red = (0, 0, 255)
 
 def main():
   
@@ -57,7 +59,7 @@ def main():
   
   # create a list of videos for cross checking analysis in debug mode
   video_list = []
-  if (debug):
+  if (debug or specifications.cluster_debug):
     for filename in os.listdir(video_path):
       f = os.path.join(video_path, filename)
       if os.path.isfile(f):
@@ -78,7 +80,7 @@ def main():
     head, _, _ = file_name.partition('_resnet50')
 
     working_directory = os.path.join(main_path, head)
-    if (debug):
+    if (debug or specifications.cluster_debug):
       video_path = video_list[i]
     
     if not os.path.exists(working_directory):
@@ -186,8 +188,9 @@ def main():
         total_distance = pd.DataFrame()
 
         for i in range(len(results)):
-          total_distance['rat_{}'.format(i)] = [results[i][1]]
-          velocity['rat_{}'.format(i)] = results[i][0]
+        
+          total_distance[f'rat_{i}'] = [results[i][1]]
+          velocity[f'rat_{i}'] = results[i][0]
         
         velocity.to_csv(velocity_path)
         total_distance.to_csv(distance_path)
@@ -201,7 +204,7 @@ def main():
       else:
         print("Skipping Veloctity and Distance calculations because directory 'velocity.csv' and 'total_distance.csv' already exists")
 
-
+      
       #6. Calculating Approach behaviour
       print("Calculating approach behavior...")
       directory = "Approach_Behavior"
@@ -240,7 +243,6 @@ def main():
           debugging_approaches.append(x[1])
           approach_matrix = np.append([approach_matrix], x[2])
         
-        print (saved_frames)
 
         approach_matrix = approach_matrix.reshape(num_individuals, num_individuals)
         if (debug):
@@ -296,7 +298,13 @@ def main():
       
       directory = "cluster_totals.csv"
       cluster_path = os.path.join(working_directory, directory)
-      
+
+      perimeter_saved_path = ''
+      if (specifications.cluster_debug):
+        perimeter_saved_path = working_directory + '\\perimeter_cluster_frames'
+        if (not os.path.exists(perimeter_saved_path)):
+          os.mkdir(perimeter_saved_path)
+
       if not os.path.exists(cluster_path) or not os.path.exists(raw_path):
             
         print("Clustering: ")
@@ -307,6 +315,7 @@ def main():
         counts = [0] * (num_individuals)
         memory = []
         
+        last_saved = 0
         for frame in range (num_frames):
           if ((frame + 1) % 1000 == 0):
             print(f'{frame}/{num_frames}')
@@ -323,7 +332,6 @@ def main():
             
           # for group size 3 - 15 inclusive,
           # threshold dictionary defines given group sizes (key) and: their maximum centriod length (value)
-          thresholds = {3:4, 4:4.5, 5:6, 6:6.5, 7:7.5, 8:8.5, 9:9, 10:9.5, 11:10, 12:10.5, 13:11, 14:11.5, 15:12}
           if (len(Rat_Point_list) >= 3):
             clusters = []
             # start at the max size group to skip over checking subgroups of found clusters
@@ -333,7 +341,26 @@ def main():
               for comb in combinations: 
                 if (len(clusters) == 0 or not contain(clusters, comb)):
                   # if the combination is not already a subgroup of a cluster
-                  is_cluster, center_point = isACluster(comb, thresholds[group_size], frame)
+                  is_cluster, is_perimeter, center_point = isACluster(comb, thresholds[group_size], frame)
+                  
+                  if (specifications.cluster_debug and is_perimeter and frame > (10 + last_saved)):
+                    
+                    file_name = perimeter_saved_path + f'\\frame_{frame}.jpg'
+                    cap = cv2.VideoCapture(video_path)
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, frame + frames_to_skip)
+                    if (not cap.isOpened()): 
+                      print("Error opening video stream or file")
+                    
+                    ret, img = cap.read()
+                    if ret == True:
+                      radius = int(convertInchToPixel(center_point[2] + 1))
+                      img_circled = cv2.circle(img, (int(center_point[0]), int(center_point[1])), radius, red, 2)
+                      cv2.imwrite(file_name, img_circled)
+                    
+                      cap.release()
+                  if (is_perimeter):
+                    last_saved = frame
+
                   if (is_cluster):
                     center_point.append(frame + frames_to_skip)
                     # if we havent seen this combination within the past frames (is not in memory)
@@ -508,17 +535,18 @@ def getVelocity(i: int, individual_pd: list, velocity_bin: int):
               if (frame < len(individual_pd[0])):
                 next_x, next_y = individual_pd[i].iloc[frame, :2]
           
-          #calculate the distance traveled in the bin for total distance and velocity (inches)
-          dist = getDistance(prev_x, prev_y, next_x, next_y)
-          total_distance += dist
-          
-          time = (velocity_bin + frames_added) / frames_per_sec
-          temp_velocity = dist / time
-          velocity_singular.append(temp_velocity)
+          if (frame < len(individual_pd[0])):
+            #calculate the distance traveled in the bin for total distance and velocity (inches)
+            dist = getDistance(prev_x, prev_y, next_x, next_y)
+            total_distance += dist
+            
+            time = (velocity_bin + frames_added) / frames_per_sec
+            temp_velocity = dist / time
+            velocity_singular.append(temp_velocity)
   
   while (len(velocity_singular) < max_inputs):
     velocity_singular.append(None)
-    
+  
   return velocity_singular, total_distance
   
       
@@ -591,15 +619,26 @@ def isACluster(arr: list, threshold: int, frame: int) -> bool:
   temp_x = avg_x
   temp_y = avg_y
    
+  max = 0
   for rat in arr:
     rat_x, rat_y = rat.getCoordinates()
     dist = getDistance(rat_x, rat_y, avg_x, avg_y)
-    if dist > threshold:
-      # not a cluster
-      return False, None
-    
-  return True, [temp_x, temp_y, threshold]
-    
+    if dist > max:
+      max = dist
+
+    if (specifications.cluster_debug):
+      if (dist > threshold + 1):
+        return False, False, None
+    else: 
+      if dist > threshold:
+        # not a cluster
+        return False, False, None
+  
+  if (specifications.cluster_debug and max > threshold and max <= threshold + 1):
+    # perimeter cluster exists but not regular cluster
+    return False, True, [temp_x, temp_y, threshold]
+  # only regular cluster exists
+  return True, False, [temp_x, temp_y, threshold]
 
 # for a given rat i, tracks its approach behavior onto all other rats
 def trackRatX(approach_distance: float, approach_time: float, null_frame_tolerance: int, i: int, individual_pd: list, rat_path: str):
